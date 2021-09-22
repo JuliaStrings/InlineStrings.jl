@@ -1,0 +1,7 @@
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+/deps/builds
+/deps/usr
+CMakeLists.txt.user
+Manifest.toml
