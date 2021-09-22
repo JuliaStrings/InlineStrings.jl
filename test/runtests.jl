@@ -40,6 +40,9 @@ x = InlineString7(buf, 1, 3)
 @test x == "hey"
 @test typeof(x) == InlineString7
 
+# https://github.com/JuliaData/WeakRefStrings.jl/issues/88
+@test InlineString(String1("a")) === String1("a")
+
 end # @testset
 
 @testset "InlineString operations" begin
