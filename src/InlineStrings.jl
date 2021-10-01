@@ -26,7 +26,7 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
 
         Custom fixed-size string with a fixed size of $($sz) bytes.
         1 byte is used to store the length of the string. If an
-        inline string is shorter than $($sz - 1) bytes, the entire
+        inline string is shorter than $($(max(1, sz - 1))) bytes, the entire
         string still occupies the full $($sz) bytes since they are,
         by definition, fixed size. Otherwise, they can be treated
         just like normal `String` values. Note that `sizeof(x)` will
@@ -35,7 +35,7 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         $($nm) can be constructed from an existing `String` (`$($nm)(x::String)`),
         from a byte buffer with position and length (`$($nm)(buf, pos, len)`),
         or built iteratively by starting with `x = $($nm)()` and calling
-        `WeakRefStrings.addcodeunit(x, b::UInt8)` which returns a new $($nm)
+        `InlineStrings.addcodeunit(x, b::UInt8)` which returns a new $($nm)
         with the new codeunit `b` appended.
         """
         primitive type $nm <: InlineString $(sz * 8) end
