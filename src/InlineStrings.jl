@@ -229,6 +229,15 @@ function ==(x::String, y::T) where {T <: InlineString}
 end
 ==(y::InlineString, x::String) = x == y
 
+function Base.cmp(a::T, b::T) where {T <: InlineString}
+    al, bl = sizeof(a), sizeof(b)
+    ar = Ref{T}(_bswap(a))
+    br = Ref{T}(_bswap(b))
+    c = ccall(:memcmp, Int32, (Ref{T}, Ref{T}, Csize_t),
+                ar, br, min(al, bl))
+    return c < 0 ? -1 : c > 0 ? +1 : cmp(al, bl)
+end
+
 function Base.hash(x::T, h::UInt) where {T <: InlineString}
     h += Base.memhash_seed
     ref = Ref{T}(_bswap(x))
