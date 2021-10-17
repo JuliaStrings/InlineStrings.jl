@@ -234,7 +234,7 @@ function Base.cmp(a::T, b::T) where {T <: InlineString}
     ar = Ref{T}(_bswap(a))
     br = Ref{T}(_bswap(b))
     c = ccall(:memcmp, Int32, (Ref{T}, Ref{T}, Csize_t),
-                ar, br, min(al, bl))
+              ar, br, min(al, bl))
     return c < 0 ? -1 : c > 0 ? +1 : cmp(al, bl)
 end
 
