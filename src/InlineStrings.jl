@@ -229,14 +229,8 @@ function ==(x::String, y::T) where {T <: InlineString}
 end
 ==(y::InlineString, x::String) = x == y
 
-function Base.cmp(a::T, b::T) where {T <: InlineString}
-    al, bl = sizeof(a), sizeof(b)
-    ar = Ref{T}(_bswap(a))
-    br = Ref{T}(_bswap(b))
-    c = ccall(:memcmp, Int32, (Ref{T}, Ref{T}, Csize_t),
-              ar, br, min(al, bl))
-    return c < 0 ? -1 : c > 0 ? +1 : cmp(al, bl)
-end
+Base.cmp(a::T, b::T) where {T <: InlineString} =
+    Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
 
 function Base.hash(x::T, h::UInt) where {T <: InlineString}
     h += Base.memhash_seed
@@ -619,9 +613,15 @@ radix(v::T, j) where {T} = _oftype(Int64, Base.and_int(Base.lshr_int(v, (j - 1) 
 
 @noinline requireprimitivetype(T) = throw(ArgumentError("RadixSort requires isprimitivetype input: `$T` invalid"))
 
-function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ordering, ts=similar(vs))
+function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ordering)
     # Input checking
     lo >= hi && return vs
+
+    if hi - lo < 2^RADIX_SIZE
+        return sort!(vs, lo, hi, MergeSort, o)
+    end
+
+    ts = similar(vs)
 
     # Make sure we're sorting a primitive type
     T = Base.Order.ordtype(o, vs)
