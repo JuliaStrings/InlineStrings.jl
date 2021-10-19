@@ -1,4 +1,4 @@
-using Test, InlineStrings, Parsers, Serialization
+using Test, InlineStrings, Parsers, Serialization, Random
 import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS, peekbyte, incr!, checksentinel, checkdelim, checkcmtemptylines
 
 @testset "InlineString basics" begin
