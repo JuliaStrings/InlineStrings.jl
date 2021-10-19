@@ -49,16 +49,16 @@ x = InlineString("hey")
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/8
 # construction from pointer
-const ptrstr = "hey"
+ptrstr = "hey"
 @test_throws ArgumentError String1(Ptr{UInt8}(0))
 @test_throws ArgumentError String1(pointer(ptrstr), 2)
 @test String1(pointer(ptrstr), 1) === String1("h")
-const ptrstr1 = UInt8['h', 0x00]
+ptrstr1 = UInt8['h', 0x00]
 @test String1(pointer(ptrstr1)) === String1("h")
-const ptrstr2 = UInt8['h', 'e', 0x00]
+ptrstr2 = UInt8['h', 'e', 0x00]
 @test_throws ArgumentError String1(pointer(ptrstr2))
 @test String3(pointer(ptrstr1)) === String3("h")
-const ptrstr3 = UInt8['h', 'e', 'y', '1', 0x00]
+ptrstr3 = UInt8['h', 'e', 'y', '1', 0x00]
 @test_throws ArgumentError String3(pointer(ptrstr3))
 @test_throws ArgumentError String3(pointer(ptrstr3), 4)
 @test String3(pointer(ptrstr3), 3) === String3("hey")
