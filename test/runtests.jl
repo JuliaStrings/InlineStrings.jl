@@ -189,3 +189,14 @@ end # @testset
     @test String127 == InlineString127
     @test String255 == InlineString255
 end
+
+@testset "sorting tests" begin
+    for nelems in (50, 100, 500, 1000, 5000, 100_000)
+        for T in (String1, String3, String7, String15, String31, String63, String127, String255)
+            x = [randstring(rand(1:(max(1, sizeof(T) - 1)))) for _ = 1:nelems];
+            y = map(T, x);
+            @test sort(x) == sort(y)
+            @test sort(x; rev=true) == sort(y; rev=true)
+        end
+    end
+end

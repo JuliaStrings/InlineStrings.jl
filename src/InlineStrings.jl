@@ -582,58 +582,69 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     return Parsers.Result{S}(code, res.tlen, x)
 end
 
+## InlineString sorting
 using Base.Sort, Base.Order
 
-struct RadixSortAlg <: Algorithm end
-const RadixSort = RadixSortAlg()
+# Only small-ish InlineStrings benefit from RadixSort algorithm
+const SmallInlineStrings = Union{String1, String3, String7, String15}
 
-## Radix sort
+# And under certain thresholds, MergeSort is faster than RadixSort, even for small InlineStrings
+const MergeSortThresholds = Dict(
+    1 => 2^5,
+    4 => 2^7,
+    8 => 2^9,
+    16 => 2^23
+)
 
-Base.Sort.defalg(::AbstractArray{<:Union{InlineString, Missing}}) = RadixSort
+struct InlineStringSortAlg <: Algorithm end
+const InlineStringSort = InlineStringSortAlg()
 
-const RADIX_SIZE = 11
-const RADIX_SIZE_POW = 2^RADIX_SIZE
-const RADIX_MASK = 0x7FF
+Base.Sort.defalg(::AbstractArray{<:Union{SmallInlineStrings, Missing}}) = InlineStringSort
+
+struct Radix
+    size::Int
+    pow::Int
+    mask::UInt16
+end
+
+Radix(size) = Radix(size, 2^size, typemax(UInt16) >> (16 - size))
 
 sortvalue(o::By,   x     ) = sortvalue(Forward, o.by(x))
 sortvalue(o::Perm, i::Int) = sortvalue(o.order, o.data[i])
 sortvalue(o::Lt,   x     ) = error("sortvalue does not work with general Lt Orderings")
-
 sortvalue(rev::ReverseOrdering, x) = Base.not_int(sortvalue(rev.fwd, x))
-
 sortvalue(::Base.ForwardOrdering, x) = x
-
-# sortvalue(::Base.ForwardOrdering, x::Signed) = unsigned(xor(x, typemin(typeof(x))))
-# sortvalue(::ForwardOrdering, x::Float32)  = (y = reinterpret(Int32, x); reinterpret(UInt32, ifelse(y < 0, ~y, xor(y, typemin(Int32)))))
-# sortvalue(::ForwardOrdering, x::Float64)  = (y = reinterpret(Int64, x); reinterpret(UInt64, ifelse(y < 0, ~y, xor(y, typemin(Int64)))))
 
 _oftype(::Type{T}, x::S) where {T, S} = sizeof(T) == sizeof(S) ? Base.bitcast(T, x) : sizeof(T) > sizeof(S) ? Base.zext_int(T, x) : Base.trunc_int(T, x)
 
-radix(v::T, j) where {T} = _oftype(Int64, Base.and_int(Base.lshr_int(v, (j - 1) * RADIX_SIZE), _oftype(T, RADIX_MASK))) + 1
+radix(v::T, j, radix_size, radix_mask) where {T} = _oftype(Int64, Base.and_int(Base.lshr_int(v, (j - 1) * radix_size), _oftype(T, radix_mask))) + 1
 
-@noinline requireprimitivetype(T) = throw(ArgumentError("RadixSort requires isprimitivetype input: `$T` invalid"))
+@noinline requireprimitivetype(T) = throw(ArgumentError("InlineStringSort requires isprimitivetype input: `$T` invalid"))
 
-function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ordering)
+function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::InlineStringSortAlg, o::Ordering)
     # Input checking
     lo >= hi && return vs
-
-    if hi - lo < 2^RADIX_SIZE
-        return sort!(vs, lo, hi, MergeSort, o)
-    end
-
-    ts = similar(vs)
 
     # Make sure we're sorting a primitive type
     T = Base.Order.ordtype(o, vs)
     isprimitivetype(T) || requireprimitivetype(T)
 
+    if hi - lo < MergeSortThresholds[sizeof(T)]
+        return sort!(vs, lo, hi, MergeSort, o)
+    end
+
     # setup
+    ts = similar(vs)
+    rdx = Radix(sizeof(T) == 1 ? 8 : 11)
+    radix_size = rdx.size
+    radix_mask = rdx.mask
+    radix_size_pow = rdx.pow
     # iters is the # of 11-bit chunks we split each element up into
     # they each represent a "significant digit" we'll be sorting on
-    iters = cld(sizeof(T) * 8, RADIX_SIZE)
+    iters = cld(sizeof(T) * 8, radix_size)
     # bin has a row for each unique 11-bit pattern
     # and a column for each 11-bit chunk we'll split each element up into
-    bin = zeros(UInt32, RADIX_SIZE_POW, iters)
+    bin = zeros(UInt32, radix_size_pow, iters)
     # if for some reason our lo isn't 1, we want to start our
     # 1st row bin values as the 1st index we'll start at in the output
     # i.e. we're assuming firstindex(vs):(lo - 1) is already sorted
@@ -644,7 +655,7 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ord
     for i = lo:hi
         v = sortvalue(o, vs[i])
         for j = 1:iters
-            idx = radix(v, j)
+            idx = radix(v, j, radix_size, radix_mask)
             @inbounds bin[idx, j] += 1
         end
     end
@@ -659,7 +670,7 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ord
         # if we, for example, had many small integer values stored in Int64
         # which would result in many "wasted" zero bits in most elements
         v = sortvalue(o, vs[hi])
-        idx = radix(v, j)
+        idx = radix(v, j, radix_size, radix_mask)
 
         # if every element was counted at this bit pattern
         # we can skip to the next radix chunk
@@ -668,7 +679,7 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ord
         # otherwise, we perform the counting sort for this radix
         # by doing a cumulative sum for this radix column in bin
         x = bin[1, j]
-        for i = 2:RADIX_SIZE_POW
+        for i = 2:radix_size_pow
             x += bin[i, j]
             bin[i, j] = x
         end
@@ -683,7 +694,7 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::RadixSortAlg, o::Ord
         # now we sort the rest of the elements' radix similarly
         for i in (hi - 1):-1:lo
             v = sortvalue(o, vs[i])
-            idx = radix(v, j)
+            idx = radix(v, j, radix_size, radix_mask)
             ci = bin[idx, j]
             bin[idx, j] -= 1
             ts[ci] = vs[i]
