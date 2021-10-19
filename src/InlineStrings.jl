@@ -14,6 +14,9 @@ is a custom primitive type and can benefit from being stack friendly by
 avoiding allocations/heap tracking in the GC. When used in an array,
 the elements are able to be stored inline since each one has a fixed
 size. Currently support inline strings from 1 byte up to 255 bytes.
+See more details by looking at individual docs for [`String1`](@ref),
+[`String3`](@ref), [`String7`](@ref), [`String15`](@ref), [`String31`](@ref),
+[`String63`](@ref), [`String127`](@ref), or [`String255`](@ref).
 """
 abstract type InlineString <: AbstractString end
 
@@ -22,7 +25,9 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
     nma = Symbol(:InlineString, max(1, sz - 1))
     @eval begin
         """
-            $($nm)
+            $($nm)(str::AbstractString)
+            $($nm)(bytes::AbstractVector{UInt8}, pos, len)
+            $($nm)(ptr::Ptr{UInt8}, [len])
 
         Custom fixed-size string with a fixed size of $($sz) bytes.
         1 byte is used to store the length of the string. If an
@@ -32,11 +37,19 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         just like normal `String` values. Note that `sizeof(x)` will
         return the # of _codeunits_ in an $($nm) like `String`, not
         the total fixed size. For the fixed size, call `sizeof($($nm))`.
-        $($nm) can be constructed from an existing `String` (`$($nm)(x::String)`),
+        $($nm) can be constructed from an existing `String` (`$($nm)(x::AbstractString)`),
         from a byte buffer with position and length (`$($nm)(buf, pos, len)`),
+        from a pointer with optional length (`$($nm)(ptr, len)`)
         or built iteratively by starting with `x = $($nm)()` and calling
-        `InlineStrings.addcodeunit(x, b::UInt8)` which returns a new $($nm)
-        with the new codeunit `b` appended.
+        `x, overflowed = InlineStrings.addcodeunit(x, b::UInt8)` which returns a 
+        new $($nm) with the new codeunit `b` appended and an `overflowed` `Bool`
+        value indicating whether too many codeunits have been appended for the
+        fixed size. When constructed from a pointer, note that the `ptr` must
+        point to valid memory or program data may become corrupt. If the `len`
+        argument is specified with the pointer, it must fit within the fixed size
+        of $($nm); if no length is provided, the C-string is assumed to be
+        NUL-terminated. If the NUL-terminated string ends up longer than can
+        fit in $($nm), an ArgumentError will be thrown.
         """
         primitive type $nm <: InlineString $(sz * 8) end
         const $nma = $nm
@@ -122,7 +135,7 @@ end
 # add a codeunit to end of string method
 function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
     if T === InlineString1
-        return x, false
+        return Base.bitcast(InlineString1, b), false
     end
     len = Base.trunc_int(UInt8, x)
     sz = Base.trunc_int(UInt8, sizeof(T))
@@ -182,6 +195,39 @@ function (::Type{T})(buf::AbstractVector{UInt8}, pos, len) where {T <: InlineStr
     end
 end
 
+function (::Type{T})(ptr::Ptr{UInt8}, len=nothing) where {T <: InlineString}
+    ptr == Ptr{UInt8}(0) && nullptr(T)
+    if T === InlineString1
+        if len === nothing
+            y, _ = addcodeunit(T(), unsafe_load(ptr))
+            unsafe_load(ptr, 2) === 0x00 || stringtoolong(T, 2)
+            return y
+        else
+            len == 1 || stringtoolong(T, len)
+            return Base.bitcast(InlineString1, unsafe_load(ptr))
+        end
+    else
+        y = T()
+        if len === nothing
+            i = 1
+            while true
+                b = unsafe_load(ptr, i)
+                b == 0x00 && break
+                @inbounds y, overflowed = addcodeunit(y, b)
+                overflowed && stringtoolong(T, i)
+                i += 1
+            end
+        else
+            len < sizeof(T) || stringtoolong(T, len)
+            for i = 1:len
+                @inbounds y, _ = addcodeunit(y, unsafe_load(ptr, i))
+            end
+        end
+        return y
+    end
+end
+
+@noinline nullptr(T) = throw(ArgumentError("cannot convert NULL to $T"))
 @noinline buftoosmall(n) = throw(ArgumentError("input buffer too short for requested length: $n"))
 @noinline stringtoolong(T, n) = throw(ArgumentError("string too large ($n) to convert to $T"))
 
