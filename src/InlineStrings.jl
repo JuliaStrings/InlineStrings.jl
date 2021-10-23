@@ -146,84 +146,116 @@ end
 
 # from String
 InlineString1(byte::UInt8=0x00) = Base.bitcast(InlineString1, byte)
-(::Type{T})() where {T <: InlineString} = Base.zext_int(T, 0x00)
 
-function (::Type{T})(x::AbstractString) where {T <: InlineString}
-    if T === InlineString1
-        sizeof(x) == 1 || stringtoolong(T, sizeof(x))
-        return Base.bitcast(InlineString1, codeunit(x, 1))
-    elseif typeof(x) === String && sizeof(T) <= sizeof(UInt)
-        len = sizeof(x)
-        len < sizeof(T) || stringtoolong(T, len)
-        y = GC.@preserve x unsafe_load(convert(Ptr{T}, pointer(x)))
-        sz = 8 * (sizeof(T) - len)
-        return Base.or_int(Base.shl_int(Base.lshr_int(_bswap(y), sz), sz), Base.zext_int(T, UInt8(len)))
-    else
-        len = ncodeunits(x)
-        len < sizeof(T) || stringtoolong(T, len)
-        y = T()
-        for i = 1:len
-            @inbounds y, _ = addcodeunit(y, codeunit(x, i))
-        end
+function InlineString1(x::AbstractString)
+    sizeof(x) == 1 || stringtoolong(InlineString1, sizeof(x))
+    return Base.bitcast(InlineString1, codeunit(x, 1))    
+end
+
+function InlineString1(buf::AbstractVector{UInt8}, pos, len)
+    len == 1 || stringtoolong(InlineString1, len)
+    return Base.bitcast(InlineString1, buf[pos])
+end
+
+function InlineString1(ptr::Ptr{UInt8}, len=nothing)
+    ptr == Ptr{UInt8}(0) && nullptr(InlineString1)
+    if len === nothing
+        y, _ = addcodeunit(InlineString1(), unsafe_load(ptr))
+        unsafe_load(ptr, 2) === 0x00 || stringtoolong(InlineString1, 2)
         return y
+    else
+        len == 1 || stringtoolong(InlineString1, len)
+        return Base.bitcast(InlineString1, unsafe_load(ptr))
     end
 end
 
-function (::Type{T})(buf::AbstractVector{UInt8}, pos, len) where {T <: InlineString}
-    if T === InlineString1
-        len == 1 || stringtoolong(T, len)
-        return Base.bitcast(InlineString1, buf[pos])
-    else
+function InlineString1(x::S) where {S <: InlineString}
+    sizeof(x) == 1 || stringtoolong(InlineString1, sizeof(x))
+    return Base.bitcast(InlineString1, codeunit(x, 1))
+end
+
+for T in (:InlineString3, :InlineString7, :InlineString15, :InlineString31, :InlineString63, :InlineString127, :InlineString255)
+    @eval $T() = Base.zext_int($T, 0x00)
+
+    @eval function $T(x::AbstractString)
+        if typeof(x) === String && sizeof($T) <= sizeof(UInt)
+            len = sizeof(x)
+            len < sizeof($T) || stringtoolong($T, len)
+            y = GC.@preserve x unsafe_load(convert(Ptr{$T}, pointer(x)))
+            sz = 8 * (sizeof($T) - len)
+            return Base.or_int(Base.shl_int(Base.lshr_int(_bswap(y), sz), sz), Base.zext_int($T, UInt8(len)))
+        else
+            len = ncodeunits(x)
+            len < sizeof($T) || stringtoolong($T, len)
+            y = $T()
+            for i = 1:len
+                @inbounds y, _ = addcodeunit(y, codeunit(x, i))
+            end
+            return y
+        end
+    end
+
+    @eval function $T(buf::AbstractVector{UInt8}, pos, len)
         blen = length(buf)
         blen < len && buftoosmall(len)
-        len < sizeof(T) || stringtoolong(T, len)
-        if (blen - pos + 1) < sizeof(T)
-            # if our buffer isn't long enough to hold a full T,
+        len < sizeof($T) || stringtoolong($T, len)
+        if (blen - pos + 1) < sizeof($T)
+            # if our buffer isn't long enough to hold a full $T,
             # then we can't do our unsafe_load trick below because we'd be
             # unsafe_load-ing memory from beyond the end of buf
             # we need to build the InlineString byte-by-byte instead
-            y = T()
+            y = $T()
             for i = pos:(pos + len - 1)
                 @inbounds y, _ = addcodeunit(y, buf[i])
             end
             return y
         else
-            y = GC.@preserve buf unsafe_load(convert(Ptr{T}, pointer(buf, pos)))
-            sz = 8 * (sizeof(T) - len)
-            return Base.or_int(Base.shl_int(Base.lshr_int(_bswap(y), sz), sz), Base.zext_int(T, UInt8(len)))
+            y = GC.@preserve buf unsafe_load(convert(Ptr{$T}, pointer(buf, pos)))
+            sz = 8 * (sizeof($T) - len)
+            return Base.or_int(Base.shl_int(Base.lshr_int(_bswap(y), sz), sz), Base.zext_int($T, UInt8(len)))
         end
     end
-end
 
-function (::Type{T})(ptr::Ptr{UInt8}, len=nothing) where {T <: InlineString}
-    ptr == Ptr{UInt8}(0) && nullptr(T)
-    if T === InlineString1
-        if len === nothing
-            y, _ = addcodeunit(T(), unsafe_load(ptr))
-            unsafe_load(ptr, 2) === 0x00 || stringtoolong(T, 2)
-            return y
-        else
-            len == 1 || stringtoolong(T, len)
-            return Base.bitcast(InlineString1, unsafe_load(ptr))
-        end
-    else
-        y = T()
+    @eval function $T(ptr::Ptr{UInt8}, len=nothing)
+        ptr == Ptr{UInt8}(0) && nullptr($T)
+        y = $T()
         if len === nothing
             i = 1
             while true
                 b = unsafe_load(ptr, i)
                 b == 0x00 && break
                 @inbounds y, overflowed = addcodeunit(y, b)
-                overflowed && stringtoolong(T, i)
+                overflowed && stringtoolong($T, i)
                 i += 1
             end
         else
-            len < sizeof(T) || stringtoolong(T, len)
+            len < sizeof($T) || stringtoolong($T, len)
             for i = 1:len
                 @inbounds y, _ = addcodeunit(y, unsafe_load(ptr, i))
             end
         end
         return y
+    end
+
+    # between InlineStringTypes
+    @eval function $T(x::S) where {S <: InlineString}
+        if $T === S
+            return x
+        elseif sizeof($T) < sizeof(S)
+            # trying to compress
+            len = sizeof(x)
+            len > (sizeof($T) - 1) && stringtoolong($T, len)
+            y = Base.trunc_int($T, Base.lshr_int(x, 8 * (sizeof(S) - sizeof($T))))
+            return Base.add_int(y, Base.zext_int($T, UInt8(len)))
+        else
+            # promoting smaller InlineString to larger
+            if S === InlineString1
+                y = Base.shl_int(Base.zext_int($T, x), 8 * (sizeof($T) - sizeof(S)))
+            else
+                y = Base.shl_int(Base.zext_int($T, Base.lshr_int(x, 8)), 8 * (sizeof($T) - sizeof(S) + 1))
+            end
+            return Base.add_int(y, Base.zext_int($T, UInt8(sizeof(x))))
+        end
     end
 end
 
@@ -241,30 +273,6 @@ end
 
 InlineString(x::InlineString) = x
 InlineString(x::AbstractString)::InlineStringTypes = (InlineStringType(ncodeunits(x)))(x)
-
-# between InlineStringTypes
-function (::Type{T})(x::S) where {T <: InlineString, S <: InlineString}
-    if T === S
-        return x
-    elseif T === InlineString1
-        sizeof(x) == 1 || stringtoolong(T, sizeof(x))
-        return Base.bitcast(InlineString1, codeunit(x, 1))
-    elseif sizeof(T) < sizeof(S)
-        # trying to compress
-        len = sizeof(x)
-        len > (sizeof(T) - 1) && stringtoolong(T, len)
-        y = Base.trunc_int(T, Base.lshr_int(x, 8 * (sizeof(S) - sizeof(T))))
-        return Base.add_int(y, Base.zext_int(T, UInt8(len)))
-    else
-        # promoting smaller InlineString to larger
-        if S === InlineString1
-            y = Base.shl_int(Base.zext_int(T, x), 8 * (sizeof(T) - sizeof(S)))
-        else
-            y = Base.shl_int(Base.zext_int(T, Base.lshr_int(x, 8)), 8 * (sizeof(T) - sizeof(S) + 1))
-        end
-        return Base.add_int(y, Base.zext_int(T, UInt8(sizeof(x))))
-    end
-end
 
 (==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
 function ==(x::String, y::T) where {T <: InlineString}
