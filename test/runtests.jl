@@ -241,5 +241,6 @@ end
 
     x = [randstring(i) for i = 1:31]
     @test InlineString.(x) == map(InlineString, x) == collect(InlineString, x)
+    @test eltype(InlineString.(x)) == eltype(map(InlineString, x)) == eltype(collect(InlineString, x)) == InlineString31
 
 end
