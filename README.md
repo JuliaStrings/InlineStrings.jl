@@ -43,3 +43,12 @@ inline strings from 1 byte up to 255 bytes.
 
 The following types are supported: `String1`, `String3`, `String7`, `String15`,
 `String31`, `String63`, `String127`, `String255`.
+
+InlineStrings can be constructed by passing an `AbstractString`, byte vector
+(`AbstractVector{UInt8}`) and position and length, or a pointer (`Ptr{UInt8}`)
+and length. See the docstring for any individual InlineString type for more details
+(like `?String3`).
+
+To generically turn any string into the smallest possible InlineString type,
+call `InlineString(x)`. To convert any iterator/array of strings to a single,
+promoted `InlineString` type, the `inlinestrings(A)` utility function is exported.

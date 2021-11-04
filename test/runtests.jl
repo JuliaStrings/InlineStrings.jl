@@ -219,7 +219,7 @@ end
 
 @testset "inlinestrings" begin
 
-    @test inlinestrings([]) == Union{}[]
+    @test inlinestrings([]) == []
     
     x = inlinestrings("$i" for i in (1, 10, 100))
     @test eltype(x) === String3
@@ -243,4 +243,9 @@ end
     @test InlineString.(x) == map(InlineString, x) == collect(InlineString, x)
     @test eltype(InlineString.(x)) == eltype(map(InlineString, x)) == eltype(collect(InlineString, x)) == InlineString31
 
+    # promote all the way to String
+    x = inlinestrings(randstring(i) for i = 1:256)
+    @test eltype(x) === String
+    x = inlinestrings(i == 1 ? missing : randstring(i) for i = 1:256 if t())
+    @test eltype(x) === Union{Missing, String}
 end

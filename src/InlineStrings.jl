@@ -764,21 +764,23 @@ end
 
 # collections of InlineStrings
 """
-    inlinestrings(itr) => Vector{<:InlineString}
+    inlinestrings(itr) => Vector
 
     Utility function that takes any iterator of `AbstractString` values
-and produces a `Vector` with a single promoted `InlineString` type. That is,
+and attempts to produce a `Vector` with a single promoted `InlineString` type. That is,
 all iterated elements will be promoted to the smallest `InlineString` subtype
-that can fit all elements. `missing` values are also allowed and will result
-in a result eltype of `Union{Missing, X}` where `X` is an `InlineString` subtype.
+that can fit all elements. If any value is larger than the current largest InlineString
+type (256 bytes), the entire collection will be promoted to `String` instead.
+`missing` values are also allowed and will result in a result eltype of `Union{Missing, X}`
+where `X` is an `InlineString` subtype or `String`.
 """
 function inlinestrings(itr::T) where {T}
     # x must be iterable
     IS = Base.IteratorSize(T)
     state = iterate(itr)
-    state === nothing && return Union{}[]
+    state === nothing && return []
     y, st = state
-    x = y === missing ? missing : InlineString(y)
+    x = y === missing ? missing : sizeof(y) < 256 ? InlineString(y) : String(y)
     eT = typeof(x)
     # allocate res, which will either be same length as `itr` if
     # IS <: HasLength, or length of 0 if Base.SizeUnknown
@@ -805,11 +807,11 @@ function _inlinestrings(itr, st, ::Type{eT}, IS, res, i) where {eT}
         if y === missing && eT >: Missing
             set!(IS, res, missing, i)
         elseif y !== missing && sizeof(y) < sizeof(eT)
-            set!(IS, res, eT(y), i)
+            set!(IS, res, Base.nonmissingtype(eT)(y), i)
         else
             # need to promote and widen res,
             # then re-dispatch on _inlinestrings for new eltype
-            x = y === missing ? y : InlineString(y)
+            x = y === missing ? missing : sizeof(y) < 256 ? InlineString(y) : String(y)
             new_eT = promote_type(typeof(x), eT)
             newres = allocate(new_eT, Base.HasLength(), res)
             copyto!(newres, 1, res, 1, i - 1)
