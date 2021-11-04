@@ -4,7 +4,7 @@ import Base: ==
 
 using Parsers
 
-export InlineString, InlineStringType
+export InlineString, InlineStringType, inlinestrings
 
 """
     InlineString
@@ -769,5 +769,70 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::InlineStringSortAlg,
     end
     return vs
 end
+
+# collections of InlineStrings
+"""
+    inlinestrings(itr) => Vector
+
+    Utility function that takes any iterator of `AbstractString` values
+and attempts to produce a `Vector` with a single promoted `InlineString` type. That is,
+all iterated elements will be promoted to the smallest `InlineString` subtype
+that can fit all elements. If any value is larger than the current largest InlineString
+type (256 bytes), the entire collection will be promoted to `String` instead.
+`missing` values are also allowed and will result in a result eltype of `Union{Missing, X}`
+where `X` is an `InlineString` subtype or `String`.
+"""
+function inlinestrings(itr::T) where {T}
+    # x must be iterable
+    IS = Base.IteratorSize(T)
+    state = iterate(itr)
+    state === nothing && return []
+    y, st = state
+    x = y === missing ? missing : sizeof(y) < 256 ? InlineString(y) : String(y)
+    eT = typeof(x)
+    # allocate res, which will either be same length as `itr` if
+    # IS <: HasLength, or length of 0 if Base.SizeUnknown
+    res = allocate(eT, IS, itr)
+    i = 1
+    # set! push!-es for Base.SizeUnknown, or setindex! for HasLength
+    set!(IS, res, x, i)
+    i += 1
+    # dispatch to separate function for type stability
+    return _inlinestrings(itr, st, eT, IS, res, i)
+end
+
+const HasLength = Union{Base.HasShape, Base.HasLength}
+allocate(::Type{T}, ::HasLength, itr) where {T} = Vector{T}(undef, length(itr))
+allocate(::Type{T}, IS, itr) where {T} = Vector{T}(undef, 0)
+set!(::HasLength, res, x, i) = setindex!(res, x, i)
+set!(IS, res, x, i) = push!(res, x)
+
+function _inlinestrings(itr, st, ::Type{eT}, IS, res, i) where {eT}
+    while true
+        state = iterate(itr, st)
+        state === nothing && break
+        y, st = state
+        if y === missing && eT >: Missing
+            set!(IS, res, missing, i)
+        elseif y !== missing && sizeof(y) < sizeof(eT)
+            set!(IS, res, Base.nonmissingtype(eT)(y), i)
+        else
+            # need to promote and widen res,
+            # then re-dispatch on _inlinestrings for new eltype
+            x = y === missing ? missing : sizeof(y) < 256 ? InlineString(y) : String(y)
+            new_eT = promote_type(typeof(x), eT)
+            newres = allocate(new_eT, Base.HasLength(), res)
+            copyto!(newres, 1, res, 1, i - 1)
+            set!(IS, newres, x, i)
+            return _inlinestrings(itr, st, new_eT, IS, newres, i + 1)
+        end
+        i += 1
+    end
+    return res
+end
+
+Base.Broadcast.broadcasted(::Type{InlineString}, A::AbstractArray) = inlinestrings(A)
+Base.map(::Type{InlineString}, A::AbstractArray) = inlinestrings(A)
+Base.collect(::Type{InlineString}, A::AbstractArray) = inlinestrings(A)
 
 end # module

@@ -216,3 +216,36 @@ end
         end
     end
 end
+
+@testset "inlinestrings" begin
+
+    @test inlinestrings([]) == []
+    
+    x = inlinestrings("$i" for i in (1, 10, 100))
+    @test eltype(x) === String3
+    @test x == ["1", "10", "100"]
+    @test eltype(inlinestrings([randstring(i) for i = 1:3])) === String3
+    @test eltype(inlinestrings([randstring(i) for i = 1:4])) === String7
+    @test eltype(inlinestrings(["a", missing, "abcd"])) === Union{String7, Missing}
+    @test eltype(inlinestrings([missing, "abcd"])) === Union{String7, Missing}
+
+    # Base.SizeUnknown() case
+    t() = true
+    x = inlinestrings("$i" for i in (1, 10, 100) if t())
+    @test eltype(x) === String3
+    @test x == ["1", "10", "100"]
+    @test eltype(inlinestrings(randstring(i) for i = 1:3 if t())) === String3
+    @test eltype(inlinestrings(randstring(i) for i = 1:4 if t())) === String7
+    @test eltype(inlinestrings(x for x in ["a", missing, "abcd"] if t())) === Union{String7, Missing}
+    @test eltype(inlinestrings(x for x in [missing, "abcd"] if t())) === Union{String7, Missing}
+
+    x = [randstring(i) for i = 1:31]
+    @test InlineString.(x) == map(InlineString, x) == collect(InlineString, x)
+    @test eltype(InlineString.(x)) == eltype(map(InlineString, x)) == eltype(collect(InlineString, x)) == InlineString31
+
+    # promote all the way to String
+    x = inlinestrings(randstring(i) for i = 1:256)
+    @test eltype(x) === String
+    x = inlinestrings(i == 1 ? missing : randstring(i) for i = 1:256 if t())
+    @test eltype(x) === Union{Missing, String}
+end
