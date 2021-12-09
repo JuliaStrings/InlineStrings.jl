@@ -215,6 +215,9 @@ end
             @test sort(x; rev=true) == sort(y; rev=true)
         end
     end
+    x = [missing, String1("b"), String1("a")]
+    sort!(x)
+    @test isequal(x, ["a", "b", missing])
 end
 
 @testset "inlinestrings" begin

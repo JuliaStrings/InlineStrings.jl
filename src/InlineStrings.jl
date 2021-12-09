@@ -681,7 +681,7 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::InlineStringSortAlg,
 
     # Make sure we're sorting a primitive type
     T = Base.Order.ordtype(o, vs)
-    isprimitivetype(T) || requireprimitivetype(T)
+    isprimitivetype(Base.nonmissingtype(T)) || requireprimitivetype(T)
 
     if hi - lo < MergeSortThresholds[sizeof(T)]
         return sort!(vs, lo, hi, MergeSort, o)
