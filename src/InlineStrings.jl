@@ -329,6 +329,44 @@ function Base.isascii(x::T) where {T <: InlineString}
     return true
 end
 
+Base.chop(s::InlineString1; kw...) = chop(String3(s); kw...)
+function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
+    if isempty(s)
+        return s
+    end
+    n = ncodeunits(s)
+    i = min(n + 1, max(nextind(s, firstindex(s), head), 1))
+    j = max(0, min(n, prevind(s, lastindex(s), tail)))
+    newlen = max(0, n - ((i - 1) + (n - j)))
+    s = Base.shl_int(Base.lshr_int(s, 8), 8)
+    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
+end
+
+function Base.chomp(s::InlineString)
+    i = lastindex(s)
+    if i < 1 || codeunit(s, i) != 0x0a
+        return s
+    elseif i < 2 || codeunit(s, i - 1) != 0x0d
+        return Base.sub_int(s, 1)
+    else
+        return Base.sub_int(s, 2)
+    end
+end
+
+function Base.first(s::InlineString, n::Integer)
+    i = min(lastindex(s), nextind(s, 0, n))
+    s = Base.shl_int(Base.lshr_int(s, 8), 8)
+    return Base.or_int(s, _oftype(typeof(s), i))
+end
+
+function Base.last(s::InlineString, n::Integer)
+    nc = ncodeunits(s) + 1
+    i = max(1, prevind(s, nc, n))
+    i == 1 && return s
+    newlen = nc - i
+    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
+end
+
 # copy/pasted from substring.jl
 function Base.reverse(s::InlineString)
     # Read characters forwards from `s` and write backwards to `out`

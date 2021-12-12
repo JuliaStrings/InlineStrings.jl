@@ -122,6 +122,24 @@ end # @testset
         write(io, x)
         seekstart(io)
         @test read(io, typeof(x)) === x
+        @test chomp(x) == chomp(y)
+        if typeof(x) != String255
+            @test chomp(InlineString(x * "\n")) == chomp(y * "\n")
+            @test chomp(InlineString(x * "\r\n")) == chomp(y * "\r\n")
+        end
+        @test chop(x) == chop(y)
+        @test chop(x; head=1, tail=0) == chop(y; head=1, tail=0)
+        @test chop(x; head=1) == chop(y; head=1)
+        @test chop(x; head=sizeof(x) + 1) == chop(y; head=sizeof(y) + 1)
+        @test chop(x; head=sizeof(x) + 1, tail=sizeof(x) + 1) == chop(y; head=sizeof(x) + 1, tail=sizeof(y) + 1)
+        @test first(x) == first(y)
+        @test first(x, sizeof(x)) == first(y, sizeof(y))
+        @test first(x, sizeof(x) - 1) == first(y, sizeof(y) - 1)
+        @test first(x, sizeof(x) + 1) == first(y, sizeof(y) + 1)
+        @test last(x) == last(y)
+        @test last(x, sizeof(x)) == last(y, sizeof(y))
+        @test last(x, sizeof(x) - 1) == last(y, sizeof(y) - 1)
+        @test last(x, sizeof(x) + 1) == last(y, sizeof(y) + 1)
     end
 end
 
