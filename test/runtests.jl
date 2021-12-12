@@ -132,13 +132,13 @@ end # @testset
         @test chop(x; head=1) == chop(y; head=1)
         @test chop(x; head=sizeof(x) + 1) == chop(y; head=sizeof(y) + 1)
         @test chop(x; head=sizeof(x) + 1, tail=sizeof(x) + 1) == chop(y; head=sizeof(x) + 1, tail=sizeof(y) + 1)
-        @test first(x) == first(y)
+        y != "" && @test first(x) == first(y)
         @test first(x, sizeof(x)) == first(y, sizeof(y))
-        @test first(x, sizeof(x) - 1) == first(y, sizeof(y) - 1)
+        y != "" && @test first(x, sizeof(x) - 1) == first(y, sizeof(y) - 1)
         @test first(x, sizeof(x) + 1) == first(y, sizeof(y) + 1)
-        @test last(x) == last(y)
+        y != "" && @test last(x) == last(y)
         @test last(x, sizeof(x)) == last(y, sizeof(y))
-        @test last(x, sizeof(x) - 1) == last(y, sizeof(y) - 1)
+        y != "" && @test last(x, sizeof(x) - 1) == last(y, sizeof(y) - 1)
         @test last(x, sizeof(x) + 1) == last(y, sizeof(y) + 1)
     end
 end

@@ -347,16 +347,17 @@ function Base.chomp(s::InlineString)
     if i < 1 || codeunit(s, i) != 0x0a
         return s
     elseif i < 2 || codeunit(s, i - 1) != 0x0d
-        return Base.sub_int(s, 1)
+        return Base.sub_int(s, _oftype(typeof(s), 1))
     else
-        return Base.sub_int(s, 2)
+        return Base.sub_int(s, _oftype(typeof(s), 2))
     end
 end
 
 function Base.first(s::InlineString, n::Integer)
     i = min(lastindex(s), nextind(s, 0, n))
+    newlen = nextind(s, i) - 1
     s = Base.shl_int(Base.lshr_int(s, 8), 8)
-    return Base.or_int(s, _oftype(typeof(s), i))
+    return Base.or_int(s, _oftype(typeof(s), newlen))
 end
 
 function Base.last(s::InlineString, n::Integer)
