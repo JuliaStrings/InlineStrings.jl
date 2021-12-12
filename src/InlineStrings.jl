@@ -342,6 +342,7 @@ function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
 end
 
+Base.chomp(s::InlineString1) = chomp(String3(s))
 function Base.chomp(s::InlineString)
     i = lastindex(s)
     if i < 1 || codeunit(s, i) != 0x0a
@@ -353,6 +354,7 @@ function Base.chomp(s::InlineString)
     end
 end
 
+Base.first(s::InlineString1, n::Integer) = first(String3(s), n)
 function Base.first(s::InlineString, n::Integer)
     i = min(lastindex(s), nextind(s, 0, n))
     newlen = nextind(s, i) - 1
@@ -360,6 +362,7 @@ function Base.first(s::InlineString, n::Integer)
     return Base.or_int(s, _oftype(typeof(s), newlen))
 end
 
+Base.last(s::InlineString1, n::Integer) = last(String3(s), n)
 function Base.last(s::InlineString, n::Integer)
     nc = ncodeunits(s) + 1
     i = max(1, prevind(s, nc, n))
