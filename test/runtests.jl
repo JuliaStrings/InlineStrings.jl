@@ -1,5 +1,5 @@
 using Test, InlineStrings, Parsers, Serialization, Random
-import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS, peekbyte, incr!, checksentinel, checkdelim, checkcmtemptylines
+import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_DELIMITER, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS, peekbyte, incr!, checksentinel, checkdelim, checkcmtemptylines
 
 @testset "InlineString basics" begin
 
@@ -181,6 +181,7 @@ testcases = [
     ("a\r\n", InlineString7("a"), NamedTuple(), OK | NEWLINE | EOF),
     ("abcdefg", InlineString7("abcdefg"), (; delim=nothing), OK | EOF),
     ("", InlineString7(), (; sentinel=missing), SENTINEL | EOF),
+    ("{abc } xyz", InlineString7("abc "), (; openquotechar='{', closequotechar='}'), OK | QUOTED | EOF | INVALID_DELIMITER),
 ]
 
 for (i, case) in enumerate(testcases)
