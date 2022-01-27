@@ -149,7 +149,7 @@ testcases = [
     (" ", InlineString7(" "), NamedTuple(), OK | EOF),
     (" \"", InlineString7(), NamedTuple(), OK | QUOTED | EOF | INVALID_QUOTED_FIELD), # invalid quoted
     (" \"\" ", InlineString7(), NamedTuple(), OK | QUOTED | EOF), # quoted
-    (" \" ", InlineString7(), NamedTuple(), OK | QUOTED | INVALID_QUOTED_FIELD | EOF), # invalid quoted
+    (" \" ", InlineString7(" "), NamedTuple(), OK | QUOTED | INVALID_QUOTED_FIELD | EOF), # invalid quoted
     (" \" \" ", InlineString7(" "), NamedTuple(), OK | QUOTED | EOF), # quoted
     ("NA", InlineString7(), (; sentinel=["NA"]), EOF | SENTINEL), # sentinel
     ("\"\"", InlineString7(), NamedTuple(), OK | QUOTED | EOF), # same e & cq
