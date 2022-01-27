@@ -624,7 +624,7 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     code = res.code
     overflowed = false
     poslen = res.val
-    if Parsers.invalid(code) || Parsers.sentinel(code)
+    if !Parsers.valueok(code) || Parsers.sentinel(code)
         x = T()
     else
         poslen = res.val
