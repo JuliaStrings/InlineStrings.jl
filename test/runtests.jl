@@ -270,4 +270,7 @@ end
     @test eltype(x) === String
     x = inlinestrings(i == 1 ? missing : randstring(i) for i = 1:256 if t())
     @test eltype(x) === Union{Missing, String}
+
+    # https://github.com/JuliaStrings/InlineStrings.jl/issues/25
+    @test inlinestrings(fill("a", 100_000)) isa Vector{String1}
 end
