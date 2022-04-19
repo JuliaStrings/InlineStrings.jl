@@ -322,9 +322,14 @@ function Base.isascii(x::T) where {T <: InlineString}
     end
     len = ncodeunits(x)
     x = Base.lshr_int(x, 8 * (sizeof(T) - len))
-    for _ = 1:len
-        Base.trunc_int(UInt8, x) >= 0x80 && return false
-        x = Base.lshr_int(x, 8)
+    for _ = 1:(len >> 2)
+        # y = Base.trunc_int(UInt32, x) >= 0x80 && return false
+        y = Base.trunc_int(UInt32, x)
+        (y & 0xff000000) >= 0x80000000 && return false
+        (y & 0x00ff0000) >= 0x00800000 && return false
+        (y & 0x0000ff00) >= 0x00008000 && return false
+        (y & 0x000000ff) >= 0x00000080 && return false
+        x = Base.lshr_int(x, 32)
     end
     return true
 end
@@ -371,16 +376,29 @@ function Base.last(s::InlineString, n::Integer)
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
 end
 
-# copy/pasted from substring.jl
-function Base.reverse(s::InlineString)
-    # Read characters forwards from `s` and write backwards to `out`
-    out = Base._string_n(sizeof(s))
-    offs = sizeof(s) + 1
-    for c in s
-        offs -= ncodeunits(c)
-        Base.__unsafe_string!(out, c, offs)
+Base.reverse(x::String1) = x
+function Base.reverse(s::T) where {T <: InlineString}
+    nc = ncodeunits(s)
+    if isascii(s)
+        len = Base.zext_int(T, Base.trunc_int(UInt8, s))
+        x = Base.or_int(Base.shl_int(_bswap(s), 8 * (sizeof(T) - nc)), len)
+        return x
     end
-    return out
+    x = Base.zext_int(T, Base.trunc_int(UInt8, s))
+    i = 1
+    while i <= nc
+        j = nextind(s, i)
+        _x = Base.lshr_int(s, 8 * (sizeof(T) - (j - 1)))
+        n = j - i
+        _x = Base.and_int(_x, n == 1 ? Base.zext_int(T, 0xff) :
+            n == 2 ? Base.zext_int(T, 0xffff) :
+            n == 3 ? Base.zext_int(T, 0xffffff) :
+                     Base.zext_int(T, 0xffffffff))
+        _x = Base.shl_int(_x, 8 * (sizeof(T) - (nc - (i - 1))))
+        x = Base.or_int(x, _x)
+        i = j
+    end
+    return x
 end
 
 @inline function Base.__unsafe_string!(out, x::T, offs::Integer) where {T <: InlineString}
