@@ -65,10 +65,11 @@ ptrstr3 = UInt8['h', 'e', 'y', '1', 0x00]
 
 end # @testset
 
+const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
+const INLINES = map(InlineString, STRINGS)
+
 @testset "InlineString operations" begin
-    for y in ("", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255)
-        x = InlineString(y)
-        @show typeof(x)
+    for (x, y) in zip(INLINES, STRINGS)
         @test codeunits(x) == codeunits(y)
         @test sizeof(x) == sizeof(y)
         @test ncodeunits(x) == ncodeunits(y)
@@ -273,4 +274,11 @@ end
 
     # https://github.com/JuliaStrings/InlineStrings.jl/issues/25
     @test inlinestrings(fill("a", 100_000)) isa Vector{String1}
+end
+
+@testset "reverse" begin
+    words = split(read(joinpath(dirname(pathof(InlineStrings)), "../test/utf8.txt"), String); keepempty=false)
+    for x in words
+        @test InlineString(x) == String(x)
+    end
 end
