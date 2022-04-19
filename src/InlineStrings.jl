@@ -323,7 +323,6 @@ function Base.isascii(x::T) where {T <: InlineString}
     len = ncodeunits(x)
     x = Base.lshr_int(x, 8 * (sizeof(T) - len))
     for _ = 1:(len >> 2)
-        # y = Base.trunc_int(UInt32, x) >= 0x80 && return false
         y = Base.trunc_int(UInt32, x)
         (y & 0xff000000) >= 0x80000000 && return false
         (y & 0x00ff0000) >= 0x00800000 && return false
