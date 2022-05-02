@@ -60,6 +60,8 @@ end
 
 _bswap(x::T) where {T <: InlineString} = T === InlineString1 ? x : Base.bswap_int(x)
 
+const BigStrings = Union{String31, String63, String127, String255}
+
 const InlineStringTypes = Union{InlineString1,
                             InlineString3,
                             InlineString7,
@@ -103,12 +105,17 @@ Base.ncodeunits(x::InlineString) = Int(Base.trunc_int(UInt8, x))
 Base.codeunit(::InlineString) = UInt8
 
 Base.@propagate_inbounds function Base.codeunit(x::T, i::Int) where {T <: InlineString}
-    @boundscheck checkbounds(Bool, x, i) || throw(BoundsError(x, i))
+    @boundscheck checkbounds(x, i)
     if T === InlineString1
         return Base.bitcast(UInt8, x)
     else
         return Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - i)))
     end
+end
+
+function _codeunits(x::T) where {T <: InlineString}
+    rx = Ref(_bswap(x))
+    return GC.@preserve rx unsafe_load(Ptr{NTuple{sizeof(T), UInt8}}(pointer_from_objref(rx)))
 end
 
 function Base.String(x::T) where {T <: InlineString}
@@ -316,12 +323,25 @@ function Base.print(io::IO, x::T) where {T <: InlineString}
     end
 end
 
-function Base.isascii(x::T) where {T <: InlineString}
+@generated function Base.isascii(x::T) where {T <: InlineString}
+    block = quote
+        len = ncodeunits(x)
+        x = _bswap(x)
+    end
+    for i = 1:(sizeof(T) - 1)
+        push!(block.args, quote
+            Base.trunc_int(UInt8, x) >= 0x80 && return false
+
+        end)
+    end
     if T === InlineString1
         return codeunit(x, 1) < 0x80
     end
     len = ncodeunits(x)
-    x = Base.lshr_int(x, 8 * (sizeof(T) - len))
+    if len < 4
+
+    end
+    x = _bswap(x)
     for _ = 1:(len >> 2)
         y = Base.trunc_int(UInt32, x)
         (y & 0xff000000) >= 0x80000000 && return false
@@ -331,6 +351,26 @@ function Base.isascii(x::T) where {T <: InlineString}
         x = Base.lshr_int(x, 32)
     end
     return true
+end
+
+function Base.isascii(s::BigStrings)
+    bytes = _codeunits(s)
+    for i = 1:ncodeunits(s)
+        @inbounds bytes[i] >= 0x80 && return false
+    end
+    return true
+end
+
+for T in (String3, String7, String15, String31, String63, String127, String255)
+    @eval asciimask(::Type{$T}) = $(Tuple(VecElement(i == sizeof(T) ? 0x00 : 0x80) for i = 1:sizeof(T)))
+end
+
+@generated function expi(x::T) where {T <: InlineString}
+    return quote
+        rx = Ref(x)
+        vec = GC.@preserve rx unsafe_load(Ptr{NTuple{$(sizeof(T)), VecElement{UInt8}}}(pointer_from_objref(rx)))
+        sub = ccall("llvm.sub.i8", llvmcall, NTuple{$(sizeof(T)), VecElement{UInt8}}, (NTuple{$(sizeof(T)), VecElement{UInt8}}, NTuple{$(sizeof(T)), VecElement{UInt8}}), vec, $(asciimask(T)))
+    end
 end
 
 Base.chop(s::InlineString1; kw...) = chop(String3(s); kw...)
