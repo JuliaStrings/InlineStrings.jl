@@ -484,6 +484,7 @@ function Base.endswith(a::T, b::Union{String, SubString{String}, InlineString}) 
 end
 
 Base.match(r::Regex, s::InlineString, i::Integer) = match(r, String(s), i)
+Base.findnext(r::Regex, s::InlineString, i::Integer) = findnext(r, String(s), i)
 
 # the rest of these methods are copy/pasted from Base strings/string.jl file
 # for efficiency
