@@ -99,6 +99,9 @@ const INLINES = map(InlineString, STRINGS)
         r1 = match(Regex(x), x)
         r2 = match(Regex(y), y)
         @test r1 === r2 || r1.match == r2.match
+        # https://github.com/JuliaStrings/InlineStrings.jl/issues/29
+        @test findnext(r"a", x, 1) == findnext(r"a", y, 1)
+        @test findall(r"a", x) == findall(r"a", y)
         for i = 1:ncodeunits(x)
             @test codeunit(x, i) == codeunit(y, i)
             @test isvalid(x, i) == isvalid(y, i)
