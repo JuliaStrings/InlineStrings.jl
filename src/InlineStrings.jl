@@ -333,22 +333,24 @@ function Base.isascii(x::T) where {T <: InlineString}
     return true
 end
 
+# "mutating" operations; care must be taken here to "clear out"
+# unused bits to ensure our == definition continues to work
+# which compares the full bit contents of inline strings
 Base.chop(s::InlineString1; kw...) = chop(String3(s); kw...)
 function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     if isempty(s)
         return s
     end
-    if head > 0 && tail > 0
-        tl = first(s, length(s) - tail)
-        return last(tl, length(tl) - head)
-    elseif tail > 0
-        return first(s, length(s) - tail)
-    elseif head > 0
-        return last(s, length(s) - head)
-    else
-        return s
-    end
+    n = ncodeunits(s)
+    i = min(n + 1, max(nextind(s, firstindex(s), head), 1))
+    j = max(0, min(n, prevind(s, lastindex(s), tail)))
+    newlen = max(0, n - ((i - 1) + (n - j)))
+    s = clear_n_bytes(s, sizeof(typeof(s)) - j)
+    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
 end
+
+# used to zero out n lower bytes of an inline string
+clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
 
 Base.chomp(s::InlineString1) = chomp(String3(s))
 function Base.chomp(s::InlineString)
@@ -357,11 +359,9 @@ function Base.chomp(s::InlineString)
     if i < 1 || codeunit(s, i) != 0x0a
         return s
     elseif i < 2 || codeunit(s, i - 1) != 0x0d
-        s = Base.shl_int(Base.lshr_int(s, 8 * (i - 1)), 8 * (i - 1))
-        return Base.or_int(s, _oftype(typeof(s), len - 1))
+        return Base.or_int(clear_n_bytes(s, sizeof(typeof(s)) - i + 1), _oftype(typeof(s), len - 1))
     else
-        s = Base.shl_int(Base.lshr_int(s, 8 * (i - 1)), 8 * (i - 1))
-        return Base.or_int(s, _oftype(typeof(s), len - 2))
+        return Base.or_int(clear_n_bytes(s, sizeof(typeof(s)) - i + 2), _oftype(typeof(s), len - 2))
     end
 end
 
@@ -369,9 +369,7 @@ Base.first(s::InlineString1, n::Integer) = first(String3(s), n)
 function Base.first(s::T, n::Integer) where {T <: InlineString}
     newlen = nextind(s, min(lastindex(s), nextind(s, 0, n))) - 1
     i = sizeof(T) - newlen
-    # clear out any bits we're not keeping
-    s = Base.shl_int(Base.lshr_int(s, 8 * i), 8 * i)
-    return Base.or_int(s, _oftype(typeof(s), newlen))
+    return Base.or_int(clear_n_bytes(s, i), _oftype(typeof(s), newlen))
 end
 
 Base.last(s::InlineString1, n::Integer) = last(String3(s), n)
@@ -381,7 +379,7 @@ function Base.last(s::T, n::Integer) where {T <: InlineString}
     i == 1 && return s
     newlen = nc - i
     # clear out the length bits before shifting left
-    s = Base.shl_int(Base.lshr_int(s, 8), 8)
+    s = clear_n_bytes(s, 1)
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
 end
 
