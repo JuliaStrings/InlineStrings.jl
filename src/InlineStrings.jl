@@ -349,14 +349,6 @@ function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
         return s
     end
 end
-#     n = ncodeunits(s)
-#     i = min(n + 1, max(nextind(s, firstindex(s), head), 1))
-#     j = max(0, min(n, prevind(s, lastindex(s), tail)))
-#     newlen = max(0, n - ((i - 1) + (n - j)))
-#     k = sizeof(typeof(s)) - newlen
-#     s = Base.shl_int(Base.lshr_int(s, 8 * k), 8 * k)
-#     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
-# end
 
 Base.chomp(s::InlineString1) = chomp(String3(s))
 function Base.chomp(s::InlineString)
