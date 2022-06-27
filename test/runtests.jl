@@ -63,6 +63,15 @@ ptrstr3 = UInt8['h', 'e', 'y', '1', 0x00]
 @test_throws ArgumentError String3(pointer(ptrstr3), 4)
 @test String3(pointer(ptrstr3), 3) === String3("hey")
 
+# https://github.com/JuliaStrings/InlineStrings.jl/issues/32
+abc = InlineString3("abc")
+@test first(abc, 2) == InlineString3("ab")
+@test last(abc, 2) == InlineString3("bc")
+@test chop(abc) == InlineString3("ab")
+@test chop(abc; head=1, tail=0) == InlineString3("bc")
+@test chomp(InlineString3("ab\n")) == InlineString3("ab")
+@test chomp(InlineString7("ab\r\n")) == InlineString7("ab")
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
