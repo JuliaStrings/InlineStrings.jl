@@ -882,7 +882,7 @@ function _inlinestrings(itr, st, ::Type{eT}, IS, res, i) where {eT}
         y, st = state
         if y === missing && eT >: Missing
             set!(IS, res, missing, i)
-        elseif y !== missing && sizeof(y) < sizeof(eT) || sizeof(y) == 1
+        elseif y !== missing && eT !== Missing && (sizeof(y) < sizeof(eT) || sizeof(y) == 1)
             set!(IS, res, Base.nonmissingtype(eT)(y), i)
         else
             # need to promote and widen res,
