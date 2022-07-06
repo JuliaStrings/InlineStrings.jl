@@ -286,6 +286,8 @@ end
 
     # https://github.com/JuliaStrings/InlineStrings.jl/issues/25
     @test inlinestrings(fill("a", 100_000)) isa Vector{String1}
+    # https://github.com/JuliaStrings/InlineStrings.jl/issues/34
+    @test inlinestrings([missing, "e"]) isa Vector{Union{Missing, String1}}
 end
 
 @testset "reverse" begin
