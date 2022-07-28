@@ -87,7 +87,7 @@ function Base.promote_rule(::Type{T}, ::Type{S}) where {T <: InlineString, S <: 
     return InlineString255
 end
 
-Base.promote_rule(::Type{T}, ::Type{String}) where {T <: InlineString} = String
+
 
 Base.widen(::Type{InlineString1}) = InlineString3
 Base.widen(::Type{InlineString3}) = InlineString7
