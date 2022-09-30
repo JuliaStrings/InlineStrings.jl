@@ -342,11 +342,12 @@ function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
         return s
     end
     n = ncodeunits(s)
-    i = min(n + 1, max(nextind(s, firstindex(s), head), 1))
-    j = max(0, min(n, prevind(s, lastindex(s), tail)))
-    newlen = max(0, n - ((i - 1) + (n - j)))
-    s = clear_n_bytes(s, sizeof(typeof(s)) - j)
-    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), newlen))
+    i = min(n + 1, max(nextind(s, firstindex(s), head), 1))  # new firstindex
+    j = max(0, min(n, prevind(s, lastindex(s), tail)))       # new lastindex
+    jx = nextind(s, j) - 1                                   # last codeunit to keep
+    new_n = max(0, nextind(s, j) - i)                        # new ncodeunits
+    s = clear_n_bytes(s, sizeof(typeof(s)) - jx)
+    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), new_n))
 end
 
 # used to zero out n lower bytes of an inline string
