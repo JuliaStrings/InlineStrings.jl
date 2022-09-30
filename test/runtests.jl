@@ -102,6 +102,65 @@ S = InlineString15
 @test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=3, tail=-3)
 @test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=-3, tail=-3)
 
+@test chopprefix(abc, "a") === InlineString3("bc")
+@test chopprefix(abc, "bc") === abc
+@test chopprefix(abc, "abc") === InlineString3("")
+@test chopprefix(InlineString1("a"), "a") === InlineString3("")
+
+@test chopsuffix(abc, "a") === abc
+@test chopsuffix(abc, "bc") === InlineString3("a")
+@test chopsuffix(abc, "abc") === InlineString3("")
+@test chopsuffix(InlineString1("c"), "c") === InlineString3("")
+
+# chopprefix / chopsuffix tests copied from Base
+# https://github.com/JuliaLang/julia/blob/v1.8.2/test/strings/util.jl#L519-L564
+S = InlineString15
+for T in (String, InlineString)
+    @test chopprefix(S("fo∀\n"), T("bog")) == "fo∀\n"
+    @test chopprefix(S("fo∀\n"), T("\n∀foΔ")) == "fo∀\n"
+    @test chopprefix(S("fo∀\n"), T("∀foΔ")) == "fo∀\n"
+    @test chopprefix(S("fo∀\n"), T("f")) == "o∀\n"
+    @test chopprefix(S("fo∀\n"), T("fo")) == "∀\n"
+    @test chopprefix(S("fo∀\n"), T("fo∀")) == "\n"
+    @test chopprefix(S("fo∀\n"), T("fo∀\n")) == ""
+    @test chopprefix(S("\nfo∀"), T("bog")) == "\nfo∀"
+    @test chopprefix(S("\nfo∀"), T("\n∀foΔ")) == "\nfo∀"
+    @test chopprefix(S("\nfo∀"), T("\nfo∀")) == ""
+    @test chopprefix(S("\nfo∀"), T("\n")) == "fo∀"
+    @test chopprefix(S("\nfo∀"), T("\nf")) == "o∀"
+    @test chopprefix(S("\nfo∀"), T("\nfo")) == "∀"
+    @test chopprefix(S("\nfo∀"), T("\nfo∀")) == ""
+    @test chopprefix(S(""), T("")) == ""
+    @test chopprefix(S(""), T("asdf")) == ""
+    @test chopprefix(S(""), T("∃∃∃")) == ""
+    @test chopprefix(S("εfoo"), T("ε")) == "foo"
+    @test chopprefix(S("ofoε"), T("o")) == "foε"
+    @test chopprefix(S("∃∃∃∃"), T("∃")) == "∃∃∃"
+    @test chopprefix(S("∃∃∃∃"), T("")) == "∃∃∃∃"
+
+    @test chopsuffix(S("fo∀\n"), T("bog")) == "fo∀\n"
+    @test chopsuffix(S("fo∀\n"), T("\n∀foΔ")) == "fo∀\n"
+    @test chopsuffix(S("fo∀\n"), T("∀foΔ")) == "fo∀\n"
+    @test chopsuffix(S("fo∀\n"), T("\n")) == "fo∀"
+    @test chopsuffix(S("fo∀\n"), T("∀\n")) == "fo"
+    @test chopsuffix(S("fo∀\n"), T("o∀\n")) == "f"
+    @test chopsuffix(S("fo∀\n"), T("fo∀\n")) == ""
+    @test chopsuffix(S("\nfo∀"), T("bog")) == "\nfo∀"
+    @test chopsuffix(S("\nfo∀"), T("\n∀foΔ")) == "\nfo∀"
+    @test chopsuffix(S("\nfo∀"), T("\nfo∀")) == ""
+    @test chopsuffix(S("\nfo∀"), T("∀")) == "\nfo"
+    @test chopsuffix(S("\nfo∀"), T("o∀")) == "\nf"
+    @test chopsuffix(S("\nfo∀"), T("fo∀")) == "\n"
+    @test chopsuffix(S("\nfo∀"), T("\nfo∀")) == ""
+    @test chopsuffix(S(""), T("")) == ""
+    @test chopsuffix(S(""), T("asdf")) == ""
+    @test chopsuffix(S(""), T("∃∃∃")) == ""
+    @test chopsuffix(S("fooε"), T("ε")) == "foo"
+    @test chopsuffix(S("εofo"), T("o")) == "εof"
+    @test chopsuffix(S("∃∃∃∃"), T("∃")) == "∃∃∃"
+    @test chopsuffix(S("∃∃∃∃"), T("")) == "∃∃∃∃"
+end
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
