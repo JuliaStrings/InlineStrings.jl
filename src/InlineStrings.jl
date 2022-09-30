@@ -350,7 +350,7 @@ function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), new_n))
 end
 
-if VERSION >= v"1.8"
+if isdefined(Base, :chopprefix)
 
 Base.chopprefix(s::InlineString1, prefix::AbstractString) = chopprefix(String3(s), prefix)
 function Base.chopprefix(s::InlineString, prefix::AbstractString)
@@ -379,6 +379,10 @@ end
     return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
+end # isdefined
+
+if isdefined(Base, :chopsuffix)
+
 Base.chopsuffix(s::InlineString1, suffix::AbstractString) = chopsuffix(String3(s), suffix)
 function Base.chopsuffix(s::InlineString, suffix::AbstractString)
     if !isempty(suffix) && endswith(s, suffix)
@@ -403,7 +407,7 @@ end
     return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
-end # if VERSION
+end # isdefined
 
 # used to zero out n lower bytes of an inline string
 clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
