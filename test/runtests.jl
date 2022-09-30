@@ -106,11 +106,17 @@ S = InlineString15
 @test chopprefix(abc, "bc") === abc
 @test chopprefix(abc, "abc") === InlineString3("")
 @test chopprefix(InlineString1("a"), "a") === InlineString3("")
+# Regex case
+@test chopprefix(InlineString15("∃∃∃b∃"), r"∃+") === InlineString15("b∃")
+@test chopprefix(InlineString1("a"), r".") === InlineString3("")
 
 @test chopsuffix(abc, "a") === abc
 @test chopsuffix(abc, "bc") === InlineString3("a")
 @test chopsuffix(abc, "abc") === InlineString3("")
 @test chopsuffix(InlineString1("c"), "c") === InlineString3("")
+# Regex case
+@test chopsuffix(InlineString15("∃b∃∃∃"), r"∃+") === InlineString15("∃b")
+@test chopsuffix(InlineString1("c"), r".") === InlineString3("")
 
 # chopprefix / chopsuffix tests copied from Base
 # https://github.com/JuliaLang/julia/blob/v1.8.2/test/strings/util.jl#L519-L564

@@ -355,28 +355,52 @@ if VERSION >= v"1.8"
 Base.chopprefix(s::InlineString1, prefix::AbstractString) = chopprefix(String3(s), prefix)
 function Base.chopprefix(s::InlineString, prefix::AbstractString)
     if !isempty(prefix) && startswith(s, prefix)
-        n = ncodeunits(s)
-        nprefix = ncodeunits(prefix)
-        new_n = n - nprefix
-        # `length` to call `nextind` for each "character" (not codeunit) in prefix
-        i = min(n + 1, max(nextind(s, firstindex(s), length(prefix)), 1))
-        s = clear_n_bytes(s, 1)           # clear out the length bits
-        s = Base.shl_int(s, (i - 1) * 8)  # clear out prefix
-        return Base.or_int(s, _oftype(typeof(s), new_n))
+        return _chopprefix(s, prefix)
     end
     return s
+end
+
+Base.chopprefix(s::InlineString1, prefix::Regex) = chopprefix(String3(s), prefix)
+function Base.chopprefix(s::InlineString, prefix::Regex)
+    m = match(prefix, String(s), firstindex(s), Base.PCRE.ANCHORED)
+    m === nothing && return s
+    isempty(m.match) && return s
+    return _chopprefix(s, m.match)
+end
+
+@inline function _chopprefix(s::InlineString, prefix::AbstractString)
+    n = ncodeunits(s)
+    nprefix = ncodeunits(prefix)
+    new_n = n - nprefix
+    # `length` to call `nextind` for each "character" (not codeunit) in prefix
+    i = min(n + 1, max(nextind(s, firstindex(s), length(prefix)), 1))
+    s = clear_n_bytes(s, 1)           # clear out the length bits
+    s = Base.shl_int(s, (i - 1) * 8)  # clear out prefix
+    return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
 Base.chopsuffix(s::InlineString1, suffix::AbstractString) = chopsuffix(String3(s), suffix)
 function Base.chopsuffix(s::InlineString, suffix::AbstractString)
     if !isempty(suffix) && endswith(s, suffix)
-        n = ncodeunits(s)
-        nsuffix = ncodeunits(suffix)
-        new_n = n - nsuffix
-        s = clear_n_bytes(s, sizeof(typeof(s)) - new_n)
-        return Base.or_int(s, _oftype(typeof(s), new_n))
+        return _chopsuffix(s, suffix)
     end
     return s
+end
+
+Base.chopsuffix(s::InlineString1, suffix::Regex) = chopsuffix(String3(s), suffix)
+function Base.chopsuffix(s::InlineString, suffix::Regex)
+    m = match(suffix, String(s), firstindex(s), Base.PCRE.ENDANCHORED)
+    m === nothing && return s
+    isempty(m.match) && return s
+    return _chopsuffix(s, m.match)
+end
+
+@inline function _chopsuffix(s::InlineString, suffix::AbstractString)
+    n = ncodeunits(s)
+    nsuffix = ncodeunits(suffix)
+    new_n = n - nsuffix
+    s = clear_n_bytes(s, sizeof(typeof(s)) - new_n)
+    return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
 end # if VERSION
