@@ -399,15 +399,28 @@ function Base.chopsuffix(s::InlineString, suffix::Regex)
     return _chopsuffix(s, m.match)
 end
 
-@inline function _chopsuffix(s::InlineString, suffix::AbstractString)
+end # isdefined
+
+_chopsuffix(s::InlineString, suffix::AbstractString) = _chopsuffix(s, ncodeunits(suffix))
+@inline function _chopsuffix(s::InlineString, nsuffix::Int)
     n = ncodeunits(s)
-    nsuffix = ncodeunits(suffix)
     new_n = n - nsuffix
     s = clear_n_bytes(s, sizeof(typeof(s)) - new_n)
     return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
-end # isdefined
+Base.rstrip(f, s::InlineString1) = rstrip(f, InlineString3(s))
+function Base.rstrip(f, s::InlineString)
+    nc = 0
+    for c in Iterators.reverse(s)
+        if f(c)
+            nc += ncodeunits(c)
+        else
+            break
+        end
+    end
+    return nc == 0 ? s : _chopsuffix(s, nc)
+end
 
 # used to zero out n lower bytes of an inline string
 clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)

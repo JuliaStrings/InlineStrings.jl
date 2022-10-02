@@ -173,6 +173,14 @@ for T in (String, InlineString)
 end
 end # isdefined
 
+
+S = InlineString7
+@test rstrip(S(" a b c ")) isa S
+@test rstrip(S(" a b c ")) === S(" a b c")
+@test rstrip(isnumeric, S("abc0123")) === S("abc")
+@test rstrip(S("ello"), ['e','o']) === S("ell")
+@test rstrip(InlineString1("x")) === InlineString3("x")
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
