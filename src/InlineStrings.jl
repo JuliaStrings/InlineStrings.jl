@@ -152,7 +152,7 @@ function InlineString1(x::AbstractString)
     return Base.bitcast(InlineString1, codeunit(x, 1))    
 end
 
-function InlineString1(buf::AbstractVector{UInt8}, pos, len)
+function InlineString1(buf::AbstractVector{UInt8}, pos=1, len=length(buf))
     len == 1 || stringtoolong(InlineString1, len)
     return Base.bitcast(InlineString1, buf[pos])
 end
@@ -195,7 +195,7 @@ for T in (:InlineString3, :InlineString7, :InlineString15, :InlineString31, :Inl
         end
     end
 
-    @eval function $T(buf::AbstractVector{UInt8}, pos, len)
+    @eval function $T(buf::AbstractVector{UInt8}, pos=1, len=length(buf))
         blen = length(buf)
         blen < len && buftoosmall(len)
         len < sizeof($T) || stringtoolong($T, len)
