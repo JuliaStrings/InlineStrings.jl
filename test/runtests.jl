@@ -69,8 +69,38 @@ abc = InlineString3("abc")
 @test last(abc, 2) == InlineString3("bc")
 @test chop(abc) == InlineString3("ab")
 @test chop(abc; head=1, tail=0) == InlineString3("bc")
+@test chop(abc) isa InlineString3
 @test chomp(InlineString3("ab\n")) == InlineString3("ab")
 @test chomp(InlineString7("ab\r\n")) == InlineString7("ab")
+@test chomp(InlineString7("ab\r\n")) isa InlineString7
+
+# https://github.com/JuliaStrings/InlineStrings.jl/issues/38
+@test chop(InlineString7("Bün")) == InlineString7("Bü")
+
+# chop tests copied from Base
+# https://github.com/JuliaLang/julia/blob/v1.8.2/test/strings/util.jl#L497-L517
+S = InlineString15
+@test chop(S("")) == ""
+@test chop(S("fooε")) == "foo"
+@test chop(S("foεo")) == "foε"
+@test chop(S("∃∃∃∃")) == "∃∃∃"
+@test chop(S("∀ϵ∃Δ"), head=0, tail=0) == "∀ϵ∃Δ"
+@test chop(S("∀ϵ∃Δ"), head=0, tail=1) == "∀ϵ∃"
+@test chop(S("∀ϵ∃Δ"), head=0, tail=2) == "∀ϵ"
+@test chop(S("∀ϵ∃Δ"), head=0, tail=3) == "∀"
+@test chop(S("∀ϵ∃Δ"), head=0, tail=4) == ""
+@test chop(S("∀ϵ∃Δ"), head=0, tail=5) == ""
+@test chop(S("∀ϵ∃Δ"), head=1, tail=0) == "ϵ∃Δ"
+@test chop(S("∀ϵ∃Δ"), head=2, tail=0) == "∃Δ"
+@test chop(S("∀ϵ∃Δ"), head=3, tail=0) == "Δ"
+@test chop(S("∀ϵ∃Δ"), head=4, tail=0) == ""
+@test chop(S("∀ϵ∃Δ"), head=5, tail=0) == ""
+@test chop(S("∀ϵ∃Δ"), head=1, tail=1) == "ϵ∃"
+@test chop(S("∀ϵ∃Δ"), head=2, tail=2) == ""
+@test chop(S("∀ϵ∃Δ"), head=3, tail=3) == ""
+@test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=-3, tail=3)
+@test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=3, tail=-3)
+@test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=-3, tail=-3)
 
 end # @testset
 
