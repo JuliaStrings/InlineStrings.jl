@@ -187,6 +187,18 @@ S = InlineString7
 @test lstrip(S("ello"), ['e','o']) === S("llo")
 @test lstrip(InlineString1("x")) === InlineString3("x")
 
+@test strip(InlineString1("x")) === InlineString3("x")
+S = InlineString3
+@test strip(S("")) === S("")
+@test strip(S(" ")) === S("")
+@test strip(S("  ")) === S("")
+S = InlineString31
+@test strip(S("\t  hi   \n")) === S("hi")
+@test strip(S(" \u2009 hi \u2009 ")) === S("hi")
+@test strip(S("foobarfoo"), ['f','o']) === S("bar")
+@test strip(S("foobarfoo"), ('f','o')) === S("bar")
+@test strip(ispunct, S("¡Hola!")) === S("Hola")
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
