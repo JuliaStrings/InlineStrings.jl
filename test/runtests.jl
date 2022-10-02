@@ -181,6 +181,12 @@ S = InlineString7
 @test rstrip(S("ello"), ['e','o']) === S("ell")
 @test rstrip(InlineString1("x")) === InlineString3("x")
 
+@test lstrip(S(" a b c ")) isa S
+@test lstrip(S(" a b c ")) === S("a b c ")
+@test lstrip(isnumeric, S("0123abc")) === S("abc")
+@test lstrip(S("ello"), ['e','o']) === S("llo")
+@test lstrip(InlineString1("x")) === InlineString3("x")
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
