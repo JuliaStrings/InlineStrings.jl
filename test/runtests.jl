@@ -1,6 +1,17 @@
 using Test, InlineStrings, Parsers, Serialization, Random
 import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_DELIMITER, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS, peekbyte, incr!, checksentinel, checkdelim, checkcmtemptylines
 
+const SUBTYPES = (
+    InlineString1,
+    InlineString3,
+    InlineString7,
+    InlineString15,
+    InlineString31,
+    InlineString63,
+    InlineString127,
+    InlineString255,
+)
+
 @testset "InlineString basics" begin
 
 y = "abcdef"
@@ -212,17 +223,6 @@ S = InlineString31
 @test strip(S("foobarfoo"), ['f','o']) === S("bar")
 @test strip(S("foobarfoo"), ('f','o')) === S("bar")
 @test strip(ispunct, S("¡Hola!")) === S("Hola")
-
-const SUBTYPES = (
-    InlineString1,
-    InlineString3,
-    InlineString7,
-    InlineString15,
-    InlineString31,
-    InlineString63,
-    InlineString127,
-    InlineString255,
-)
 
 # getindex
 for S in SUBTYPES
