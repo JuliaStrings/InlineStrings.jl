@@ -344,11 +344,31 @@ function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     n = ncodeunits(s)
     i = min(n + 1, max(nextind(s, firstindex(s), head), 1))  # new firstindex
     j = max(0, min(n, prevind(s, lastindex(s), tail)))       # new lastindex
-    jx = nextind(s, j) - 1                                   # last codeunit to keep
+    return _subinlinestring(s, i, j)
+end
+
+# `i`, `j` must be `isvalid` string indexes
+@inline function _subinlinestring(s::T, i::Integer, j::Integer) where {T <: InlineString}
+    n = ncodeunits(s)
     new_n = max(0, nextind(s, j) - i)                        # new ncodeunits
+    jx = nextind(s, j) - 1                                   # last codeunit to keep
     s = clear_n_bytes(s, sizeof(typeof(s)) - jx)
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), new_n))
 end
+
+Base.getindex(s::InlineString1, r::AbstractUnitRange{<:Integer}) = getindex(InlineString3(s), r)
+function Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer})
+    i = first(r)
+    j = last(r)
+    @boundscheck begin
+        checkbounds(s, i:j)
+        @inbounds isvalid(s, i) || Base.string_index_err(s, i)
+        @inbounds isvalid(s, j) || Base.string_index_err(s, j)
+    end
+    return _subinlinestring(s, first(r), last(r))
+end
+
+Base.view(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, r)
 
 if isdefined(Base, :chopprefix)
 

@@ -213,6 +213,40 @@ S = InlineString31
 @test strip(S("foobarfoo"), ('f','o')) === S("bar")
 @test strip(ispunct, S("¡Hola!")) === S("Hola")
 
+const SUBTYPES = (
+    InlineString1,
+    InlineString3,
+    InlineString7,
+    InlineString15,
+    InlineString31,
+    InlineString63,
+    InlineString127,
+    InlineString255,
+)
+
+# getindex
+for S in SUBTYPES
+    if S == InlineString1
+        x = S("x")
+        @test x[1] == 'x'
+        @test x[1:1] isa InlineString3
+        @test x[1:1] === view(x, 1:1) === InlineString3(x)
+        @test x[2:1] === view(x, 2:1) === InlineString3("")
+        @test_throws BoundsError x[2]
+    else
+        abc = S("abc")
+        @test abc[1] == 'a'
+        @test abc[1:2] isa S
+        @test abc[1:2] === view(abc, 1:2) === S("ab")
+        @test abc[2:1] === view(abc, 2:1) === S("")
+        @test_throws BoundsError abc[4]
+        @test_throws BoundsError abc[1:4]
+        @test S("÷2")[1:3] === S("÷2")
+        @test_throws StringIndexError S("÷2")[2]
+        @test_throws StringIndexError S("÷2")[1:2]
+    end
+end
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
@@ -237,6 +271,9 @@ const INLINES = map(InlineString, STRINGS)
         @test string(x) == string(y)
         @test join([x, x]) == join([y, y])
         @test reverse(x) == reverse(y)
+        y != "" && @test x[1] == y[1]
+        y != "" && @test x[1:1] == y[1:1]
+        y != "" && @test view(x, 1:1) == view(y, 1:1)
         y != "" && @test startswith(x, "a") == startswith(y, "a")
         y != "" && @test endswith(x, "a") == endswith(y, "a")
         y != "" && @test findfirst(==(x[1]), x) === findfirst(==(x[1]), y)
