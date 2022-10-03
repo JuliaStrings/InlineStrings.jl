@@ -173,6 +173,32 @@ for T in (String, InlineString)
 end
 end # isdefined
 
+
+S = InlineString7
+@test rstrip(S(" a b c ")) isa S
+@test rstrip(S(" a b c ")) === S(" a b c")
+@test rstrip(isnumeric, S("abc0123")) === S("abc")
+@test rstrip(S("ello"), ['e','o']) === S("ell")
+@test rstrip(InlineString1("x")) === InlineString3("x")
+
+@test lstrip(S(" a b c ")) isa S
+@test lstrip(S(" a b c ")) === S("a b c ")
+@test lstrip(isnumeric, S("0123abc")) === S("abc")
+@test lstrip(S("ello"), ['e','o']) === S("llo")
+@test lstrip(InlineString1("x")) === InlineString3("x")
+
+@test strip(InlineString1("x")) === InlineString3("x")
+S = InlineString3
+@test strip(S("")) === S("")
+@test strip(S(" ")) === S("")
+@test strip(S("  ")) === S("")
+S = InlineString31
+@test strip(S("\t  hi   \n")) === S("hi")
+@test strip(S(" \u2009 hi \u2009 ")) === S("hi")
+@test strip(S("foobarfoo"), ['f','o']) === S("bar")
+@test strip(S("foobarfoo"), ('f','o')) === S("bar")
+@test strip(ispunct, S("¡Hola!")) === S("Hola")
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]

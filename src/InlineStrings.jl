@@ -368,18 +368,36 @@ function Base.chopprefix(s::InlineString, prefix::Regex)
     return _chopprefix(s, m.match)
 end
 
-@inline function _chopprefix(s::InlineString, prefix::AbstractString)
+end # isdefined
+
+function _chopprefix(s::InlineString, prefix::AbstractString)
+    return _chopprefix(s, ncodeunits(prefix), length(prefix))
+end
+@inline function _chopprefix(s::InlineString, nprefix::Int, lprefix::Int)
+    @assert nprefix >= lprefix
     n = ncodeunits(s)
-    nprefix = ncodeunits(prefix)
     new_n = n - nprefix
-    # `length` to call `nextind` for each "character" (not codeunit) in prefix
-    i = min(n + 1, max(nextind(s, firstindex(s), length(prefix)), 1))
+    # call `nextind` for each "character" (not codeunit) in prefix
+    i = min(n + 1, max(nextind(s, firstindex(s), lprefix), 1))
     s = clear_n_bytes(s, 1)           # clear out the length bits
     s = Base.shl_int(s, (i - 1) * 8)  # clear out prefix
     return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
-end # isdefined
+Base.lstrip(f, s::InlineString1) = lstrip(f, InlineString3(s))
+function Base.lstrip(f, s::InlineString)
+    nc = 0
+    len = 0
+    for c in s
+        if f(c)
+            nc += ncodeunits(c)
+            len += 1
+        else
+            break
+        end
+    end
+    return nc == 0 ? s : _chopprefix(s, nc, len)
+end
 
 if isdefined(Base, :chopsuffix)
 
@@ -399,15 +417,28 @@ function Base.chopsuffix(s::InlineString, suffix::Regex)
     return _chopsuffix(s, m.match)
 end
 
-@inline function _chopsuffix(s::InlineString, suffix::AbstractString)
+end # isdefined
+
+_chopsuffix(s::InlineString, suffix::AbstractString) = _chopsuffix(s, ncodeunits(suffix))
+@inline function _chopsuffix(s::InlineString, nsuffix::Int)
     n = ncodeunits(s)
-    nsuffix = ncodeunits(suffix)
     new_n = n - nsuffix
     s = clear_n_bytes(s, sizeof(typeof(s)) - new_n)
     return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
-end # isdefined
+Base.rstrip(f, s::InlineString1) = rstrip(f, InlineString3(s))
+function Base.rstrip(f, s::InlineString)
+    nc = 0
+    for c in Iterators.reverse(s)
+        if f(c)
+            nc += ncodeunits(c)
+        else
+            break
+        end
+    end
+    return nc == 0 ? s : _chopsuffix(s, nc)
+end
 
 # used to zero out n lower bytes of an inline string
 clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
