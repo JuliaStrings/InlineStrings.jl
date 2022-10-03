@@ -41,7 +41,7 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         from a byte buffer with position and length (`$($nm)(buf, pos, len)`),
         from a pointer with optional length (`$($nm)(ptr, len)`)
         or built iteratively by starting with `x = $($nm)()` and calling
-        `x, overflowed = InlineStrings.addcodeunit(x, b::UInt8)` which returns a 
+        `x, overflowed = InlineStrings.addcodeunit(x, b::UInt8)` which returns a
         new $($nm) with the new codeunit `b` appended and an `overflowed` `Bool`
         value indicating whether too many codeunits have been appended for the
         fixed size. When constructed from a pointer, note that the `ptr` must
@@ -149,7 +149,7 @@ InlineString1(byte::UInt8=0x00) = Base.bitcast(InlineString1, byte)
 
 function InlineString1(x::AbstractString)
     sizeof(x) == 1 || stringtoolong(InlineString1, sizeof(x))
-    return Base.bitcast(InlineString1, codeunit(x, 1))    
+    return Base.bitcast(InlineString1, codeunit(x, 1))
 end
 
 function InlineString1(buf::AbstractVector{UInt8}, pos=1, len=length(buf))
@@ -349,7 +349,6 @@ end
 
 # `i`, `j` must be `isvalid` string indexes
 @inline function _subinlinestring(s::T, i::Integer, j::Integer) where {T <: InlineString}
-    n = ncodeunits(s)
     new_n = max(0, nextind(s, j) - i)                        # new ncodeunits
     jx = nextind(s, j) - 1                                   # last codeunit to keep
     s = clear_n_bytes(s, sizeof(typeof(s)) - jx)
