@@ -272,6 +272,7 @@ const INLINES = map(InlineString, STRINGS)
         @test join([x, x]) == join([y, y])
         @test reverse(x) == reverse(y)
         y != "" && @test x[1] == y[1]
+        y != "" && @test x[Int8(1)] == y[Int8(1)]
         y != "" && @test x[1:1] == y[1:1]
         y != "" && @test view(x, 1:1) == view(y, 1:1)
         y != "" && @test startswith(x, "a") == startswith(y, "a")

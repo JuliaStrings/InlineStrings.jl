@@ -684,14 +684,14 @@ function iterate_continued(s::InlineString, i::Int, u::UInt32)
     return reinterpret(Char, u), i
 end
 
-Base.@propagate_inbounds function Base.getindex(s::InlineString, i::Int)
+Base.@propagate_inbounds function Base.getindex(s::InlineString, i::Integer)
     b = codeunit(s, i)
     u = UInt32(b) << 24
     Base.between(b, 0x80, 0xf7) || return reinterpret(Char, u)
     return getindex_continued(s, i, u)
 end
 
-function getindex_continued(s::InlineString, i::Int, u::UInt32)
+function getindex_continued(s::InlineString, i::Integer, u::UInt32)
     if u < 0xc0000000
         # called from `getindex` which checks bounds
         @inbounds isvalid(s, i) && @goto ret
