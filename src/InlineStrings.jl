@@ -356,7 +356,7 @@ end
 end
 
 Base.getindex(s::InlineString1, r::AbstractUnitRange{<:Integer}) = getindex(InlineString3(s), r)
-function Base.getindex(s::T, r::AbstractUnitRange{<:Integer}) where {T <: InlineString}
+Base.@propagate_inbounds function Base.getindex(s::T, r::AbstractUnitRange{<:Integer}) where {T <: InlineString}
     isempty(r) && return T("")
     i = first(r)
     j = last(r)
@@ -365,7 +365,7 @@ function Base.getindex(s::T, r::AbstractUnitRange{<:Integer}) where {T <: Inline
         @inbounds isvalid(s, i) || Base.string_index_err(s, i)
         @inbounds isvalid(s, j) || Base.string_index_err(s, j)
     end
-    return _subinlinestring(s, first(r), last(r))
+    return _subinlinestring(s, i, j)
 end
 
 Base.view(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, r)
