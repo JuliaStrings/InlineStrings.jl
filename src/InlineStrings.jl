@@ -356,7 +356,8 @@ end
 end
 
 Base.getindex(s::InlineString1, r::AbstractUnitRange{<:Integer}) = getindex(InlineString3(s), r)
-function Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer})
+function Base.getindex(s::T, r::AbstractUnitRange{<:Integer}) where {T <: InlineString}
+    isempty(r) && return T("")
     i = first(r)
     j = last(r)
     @boundscheck begin
