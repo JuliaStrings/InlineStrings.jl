@@ -355,8 +355,10 @@ end
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), new_n))
 end
 
-Base.getindex(s::InlineString1, r::AbstractUnitRange{<:Integer}) = getindex(InlineString3(s), r)
-Base.@propagate_inbounds function Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer})
+Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, Int(first(r)):Int(last(r)))
+
+Base.getindex(s::InlineString1, r::UnitRange{Int}) = getindex(InlineString3(s), r)
+Base.@propagate_inbounds function Base.getindex(s::InlineString, r::UnitRange{Int})
     isempty(r) && return typeof(s)("")
     i = first(r)
     j = last(r)
