@@ -132,6 +132,9 @@ function Base.Symbol(x::T) where {T <: InlineString}
         (Ref{T}, Int), ref, sizeof(x))
 end
 
+Base.Vector{UInt8}(s::InlineString) = Vector{UInt8}(codeunits(s))
+Base.Array{UInt8}(s::InlineString) = Vector{UInt8}(codeunits(s))
+
 # add a codeunit to end of string method
 function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
     if T === InlineString1
