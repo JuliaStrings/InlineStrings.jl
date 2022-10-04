@@ -1,4 +1,3 @@
-
 # InlineStrings
 
 [![CI](https://github.com/JuliaData/InlineStrings.jl/workflows/CI/badge.svg)](https://github.com/JuliaData/InlineStrings.jl/actions?query=workflow%3ACI)
@@ -19,7 +18,7 @@ julia> using Pkg; Pkg.add("InlineStrings")
 
 ## Project Status
 
-The package is tested against Julia `1.6` and `nightly` on Linux, OS X, and Windows.
+The package is tested against the latest Julia `1.x` release, the long-term support release `1.6`, and `nightly` on Linux, OS X, and Windows.
 
 ## Contributing and Questions
 
