@@ -239,6 +239,7 @@ for S in SUBTYPES
         @test abc[1:2] isa S
         @test abc[1:2] === view(abc, 1:2) === S("ab")
         @test abc[2:1] === view(abc, 2:1) === S("")
+        @test abc[Base.OneTo(2)] === S("ab")
         @test_throws BoundsError abc[4]
         @test_throws BoundsError abc[1:4]
         @test S("÷2")[1:3] === S("÷2")
@@ -434,7 +435,7 @@ end
 @testset "inlinestrings" begin
 
     @test inlinestrings([]) == []
-    
+
     x = inlinestrings("$i" for i in (1, 10, 100))
     @test eltype(x) === String3
     @test x == ["1", "10", "100"]
