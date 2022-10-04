@@ -41,7 +41,7 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         from a byte buffer with position and length (`$($nm)(buf, pos, len)`),
         from a pointer with optional length (`$($nm)(ptr, len)`)
         or built iteratively by starting with `x = $($nm)()` and calling
-        `x, overflowed = InlineStrings.addcodeunit(x, b::UInt8)` which returns a 
+        `x, overflowed = InlineStrings.addcodeunit(x, b::UInt8)` which returns a
         new $($nm) with the new codeunit `b` appended and an `overflowed` `Bool`
         value indicating whether too many codeunits have been appended for the
         fixed size. When constructed from a pointer, note that the `ptr` must
@@ -149,7 +149,7 @@ InlineString1(byte::UInt8=0x00) = Base.bitcast(InlineString1, byte)
 
 function InlineString1(x::AbstractString)
     sizeof(x) == 1 || stringtoolong(InlineString1, sizeof(x))
-    return Base.bitcast(InlineString1, codeunit(x, 1))    
+    return Base.bitcast(InlineString1, codeunit(x, 1))
 end
 
 function InlineString1(buf::AbstractVector{UInt8}, pos=1, len=length(buf))
@@ -344,11 +344,33 @@ function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     n = ncodeunits(s)
     i = min(n + 1, max(nextind(s, firstindex(s), head), 1))  # new firstindex
     j = max(0, min(n, prevind(s, lastindex(s), tail)))       # new lastindex
-    jx = nextind(s, j) - 1                                   # last codeunit to keep
+    return _subinlinestring(s, i, j)
+end
+
+# `i`, `j` must be `isvalid` string indexes
+@inline function _subinlinestring(s::T, i::Integer, j::Integer) where {T <: InlineString}
     new_n = max(0, nextind(s, j) - i)                        # new ncodeunits
+    jx = nextind(s, j) - 1                                   # last codeunit to keep
     s = clear_n_bytes(s, sizeof(typeof(s)) - jx)
     return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), new_n))
 end
+
+Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, Int(first(r)):Int(last(r)))
+
+Base.getindex(s::InlineString1, r::UnitRange{Int}) = getindex(InlineString3(s), r)
+Base.@propagate_inbounds function Base.getindex(s::InlineString, r::UnitRange{Int})
+    isempty(r) && return typeof(s)("")
+    i = first(r)
+    j = last(r)
+    @boundscheck begin
+        checkbounds(s, i:j)
+        @inbounds isvalid(s, i) || Base.string_index_err(s, i)
+        @inbounds isvalid(s, j) || Base.string_index_err(s, j)
+    end
+    return _subinlinestring(s, i, j)
+end
+
+Base.view(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, r)
 
 if isdefined(Base, :chopprefix)
 
@@ -664,14 +686,14 @@ function iterate_continued(s::InlineString, i::Int, u::UInt32)
     return reinterpret(Char, u), i
 end
 
-Base.@propagate_inbounds function Base.getindex(s::InlineString, i::Int)
+Base.@propagate_inbounds function Base.getindex(s::InlineString, i::Integer)
     b = codeunit(s, i)
     u = UInt32(b) << 24
     Base.between(b, 0x80, 0xf7) || return reinterpret(Char, u)
     return getindex_continued(s, i, u)
 end
 
-function getindex_continued(s::InlineString, i::Int, u::UInt32)
+function getindex_continued(s::InlineString, i::Integer, u::UInt32)
     if u < 0xc0000000
         # called from `getindex` which checks bounds
         @inbounds isvalid(s, i) && @goto ret
