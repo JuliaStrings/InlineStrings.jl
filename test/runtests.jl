@@ -34,11 +34,25 @@ y = InlineString7(x)
 # https://discourse.julialang.org/t/having-trouble-implementating-a-tables-jl-row-table-when-using-badukgoweiqitools-dataframe-tbl-no-longer-works/63622/1
 @test promote_type(Union{}, String) == String
 
+# construction from bytes buffer
 # make sure we don't read past an end of a buffer
 buf = Vector{UInt8}("hey")
 x = InlineString7(buf, 1, 3)
 @test x == "hey"
 @test typeof(x) == InlineString7
+x = InlineString7(buf)
+@test x == "hey"
+@test typeof(x) == InlineString7
+@test_throws ArgumentError InlineString7(b"abcdefgh")
+
+buf = Vector{UInt8}("x")
+x = InlineString1(buf, 1, 1)
+@test x == "x"
+@test typeof(x) == InlineString1
+x = InlineString1(buf)
+@test x == "x"
+@test typeof(x) == InlineString1
+@test_throws ArgumentError InlineString1(b"xy")
 
 # https://github.com/JuliaData/WeakRefStrings.jl/issues/88
 @test InlineString(String1("a")) === String1("a")
