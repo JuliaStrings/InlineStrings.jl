@@ -486,3 +486,16 @@ end
         @test InlineString(x) == String(x)
     end
 end
+
+@testset "macros" begin
+    x = Inline"This is a macro test"
+    @test String(x) == "This is a macro test"
+    @test typeof(x) == String31
+    y = Inline"This is macro test"255
+    @test typeof(y) == String255
+    for n in (2 .^(0:8) .- 1)
+        z = eval(quote @Inline_str "This is macro test" $n end)
+        T = InlineStrings.InlineStringType(n)
+        @test typeof(z) == T
+    end
+end

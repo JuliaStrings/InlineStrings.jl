@@ -5,6 +5,7 @@ import Base: ==
 using Parsers
 
 export InlineString, InlineStringType, inlinestrings
+export @Inline_str
 
 """
     InlineString
@@ -276,6 +277,28 @@ end
 
 InlineString(x::InlineString) = x
 InlineString(x::AbstractString)::InlineStringTypes = (InlineStringType(ncodeunits(x)))(x)
+
+"""
+    Inline"string"
+    Inline"string"N
+
+Macro to create an [`InlineString`](@ref).
+Optionally specify `N` to create an `InlineString` of at least `N` codeunits.
+"""
+macro Inline_str(ex)
+    s = unescape_string(ex)
+    quote
+        InlineString($s)
+    end
+end
+
+macro Inline_str(ex, n)
+    s = unescape_string(ex)
+    T = InlineStringType(n)
+    quote
+        $T($s)
+    end
+end
 
 (==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
 function ==(x::String, y::T) where {T <: InlineString}
