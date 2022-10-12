@@ -761,6 +761,9 @@ end
 end
 
 # Parsers.xparse
+Parsers.xparse(::Type{T}, buf::AbstractString, pos, len, options, ::Type{S}=T) where {T <: InlineString, S} =
+    Parsers.xparse(T, codeunits(buf), pos, len, options, S)
+
 function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos, len, options::Parsers.Options, ::Type{S}=T) where {T <: InlineString, S}
     res = Parsers.xparse(String, source, pos, len, options, PosLen)
     code = res.code
