@@ -761,8 +761,11 @@ end
 end
 
 # Parsers.xparse
-function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos, len, options::Parsers.Options, ::Type{S}=T)::Parsers.Result{S} where {T <: InlineString, S}
-    res = Parsers.xparse(String, source, pos, len, options)
+Parsers.xparse(::Type{T}, buf::AbstractString, pos, len, options, ::Type{S}=T) where {T <: InlineString, S} =
+    Parsers.xparse(T, codeunits(buf), pos, len, options, S)
+
+function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos, len, options::Parsers.Options, ::Type{S}=T) where {T <: InlineString, S}
+    res = Parsers.xparse(String, source, pos, len, options, PosLen)
     code = res.code
     overflowed = false
     poslen = res.val
@@ -817,7 +820,7 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     if overflowed
         code |= Parsers.OVERFLOW
     end
-    return Parsers.Result{S}(code, res.tlen, x)
+    return Parsers.Result{T}(code, res.tlen, x)
 end
 
 ## InlineString sorting
