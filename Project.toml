@@ -1,6 +1,6 @@
 name = "InlineStrings"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
-authors = ["Jacob Quinn <quinn.jacobd@gmail.com>" and contributors]
+authors = ["Jacob Quinn <quinn.jacobd@gmail.com> and contributors"]
 version = "1.2.2"
 
 [deps]
