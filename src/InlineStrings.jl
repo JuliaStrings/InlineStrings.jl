@@ -5,7 +5,7 @@ import Base: ==
 using Parsers
 
 export InlineString, InlineStringType, inlinestrings
-export @Inline_str
+export @inline_str
 
 """
     InlineString
@@ -279,24 +279,24 @@ InlineString(x::InlineString) = x
 InlineString(x::AbstractString)::InlineStringTypes = (InlineStringType(ncodeunits(x)))(x)
 
 """
-    Inline"string"
-    Inline"string"N
+    inline"string"
+    inline"string"N
 
 Macro to create an [`InlineString`](@ref).
 Optionally specify `N` to create an `InlineString` of at least `N` codeunits.
 """
-macro Inline_str(ex)
-    s = unescape_string(ex)
+macro inline_str(ex)
+    s = InlineString(unescape_string(ex))
     quote
-        InlineString($s)
+        $s
     end
 end
 
-macro Inline_str(ex, n)
-    s = unescape_string(ex)
+macro inline_str(ex, n)
     T = InlineStringType(n)
+    s = T(unescape_string(ex))
     quote
-        $T($s)
+        $s
     end
 end
 
