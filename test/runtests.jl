@@ -392,6 +392,16 @@ res = Parsers.xparse(InlineString1, "ab")
 res = Parsers.xparse(InlineString1, "b")
 @test res.val === InlineString("b")
 
+# Parse to a `Result{Any}`
+# https://github.com/JuliaData/CSV.jl/issues/1033
+buf = b"abc"
+pos = 1
+len = length(buf)
+opts = Parsers.Options()
+res = Parsers.xparse(InlineString7, buf, pos, len, opts, Any)
+@test res isa Parsers.Result{Any}
+@test res.val == "abc"
+
 end # @testset
 
 @testset "InlineString Serialization symmetry" begin

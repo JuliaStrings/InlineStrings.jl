@@ -820,7 +820,7 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     if overflowed
         code |= Parsers.OVERFLOW
     end
-    return Parsers.Result{T}(code, res.tlen, x)
+    return Parsers.Result{S}(code, res.tlen, x)
 end
 
 ## InlineString sorting
