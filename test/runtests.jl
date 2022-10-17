@@ -491,13 +491,6 @@ end
     x = inline"This is a macro test"
     @test String(x) == "This is a macro test"
     @test typeof(x) == String31
-    y = inline"This is macro test"255
-    @test typeof(y) == String255
-    for n in (2 .^(0:8) .- 1)
-        z = eval(quote @inline_str "a" $n end)
-        T = InlineStrings.InlineStringType(n)
-        @test typeof(z) == T
-    end
     @test typeof(inline1"a") == String1
     @test typeof(inline3"a") == String3
     @test typeof(inline7"a") == String7

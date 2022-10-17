@@ -66,10 +66,7 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         """
         macro $macro_nm(ex)
             T = InlineStringType($(max(1,sz - 1)))
-            s = T(unescape_string(ex))
-            quote
-                $s
-            end
+            T(unescape_string(ex))
         end
 
         export $at_macro_nm
@@ -297,25 +294,13 @@ InlineString(x::AbstractString)::InlineStringTypes = (InlineStringType(ncodeunit
 
 """
     inline"string"
-    inline"string"N
 
 Macro to create an [`InlineString`](@ref).
-Optionally specify `N` to create an `InlineString` of at least `N` codeunits.
 """
 macro inline_str(ex)
-    s = InlineString(unescape_string(ex))
-    quote
-        $s
-    end
+    InlineString(unescape_string(ex))
 end
 
-macro inline_str(ex, n)
-    T = InlineStringType(n)
-    s = T(unescape_string(ex))
-    quote
-        $s
-    end
-end
 
 (==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
 function ==(x::String, y::T) where {T <: InlineString}
