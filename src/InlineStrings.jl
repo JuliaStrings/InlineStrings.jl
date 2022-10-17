@@ -24,6 +24,8 @@ abstract type InlineString <: AbstractString end
 for sz in (1, 4, 8, 16, 32, 64, 128, 256)
     nm = Symbol(:String, max(1, sz - 1))
     nma = Symbol(:InlineString, max(1, sz - 1))
+    macro_nm = Symbol(:inline, max(1, sz - 1), :_str)
+    at_macro_nm = Symbol("@", macro_nm)
     @eval begin
         """
             $($nm)(str::AbstractString)
@@ -56,6 +58,21 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         const $nma = $nm
         export $nm
         export $nma
+
+        """
+            inline$($(max(1, sz - 1)))"string"
+
+        Macro to create a [`$($nm)`](@ref) with a fixed size of $($sz) bytes.
+        """
+        macro $macro_nm(ex)
+            T = InlineStringType($(max(1,sz - 1)))
+            s = T(unescape_string(ex))
+            quote
+                $s
+            end
+        end
+
+        export $at_macro_nm
     end
 end
 

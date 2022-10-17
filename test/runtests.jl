@@ -498,4 +498,12 @@ end
         T = InlineStrings.InlineStringType(n)
         @test typeof(z) == T
     end
+    @test typeof(inline1"a") == String1
+    @test typeof(inline3"a") == String3
+    @test typeof(inline7"a") == String7
+    @test typeof(inline15"a") == String15
+    @test typeof(inline31"a") == String31
+    @test typeof(inline63"a") == String63
+    @test typeof(inline127"a") == String127
+    @test typeof(inline255"a") == String255
 end
