@@ -5,6 +5,7 @@ import Base: ==
 using Parsers
 
 export InlineString, InlineStringType, inlinestrings
+export @inline_str
 
 """
     InlineString
@@ -23,6 +24,8 @@ abstract type InlineString <: AbstractString end
 for sz in (1, 4, 8, 16, 32, 64, 128, 256)
     nm = Symbol(:String, max(1, sz - 1))
     nma = Symbol(:InlineString, max(1, sz - 1))
+    macro_nm = Symbol(:inline, max(1, sz - 1), :_str)
+    at_macro_nm = Symbol("@", macro_nm)
     @eval begin
         """
             $($nm)(str::AbstractString)
@@ -55,6 +58,18 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         const $nma = $nm
         export $nm
         export $nma
+
+        """
+            inline$($(max(1, sz - 1)))"string"
+
+        Macro to create a [`$($nm)`](@ref) with a fixed size of $($sz) bytes.
+        """
+        macro $macro_nm(ex)
+            T = InlineStringType($(max(1,sz - 1)))
+            T(unescape_string(ex))
+        end
+
+        export $at_macro_nm
     end
 end
 
@@ -276,6 +291,16 @@ end
 
 InlineString(x::InlineString) = x
 InlineString(x::AbstractString)::InlineStringTypes = (InlineStringType(ncodeunits(x)))(x)
+
+"""
+    inline"string"
+
+Macro to create an [`InlineString`](@ref).
+"""
+macro inline_str(ex)
+    InlineString(unescape_string(ex))
+end
+
 
 (==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
 function ==(x::String, y::T) where {T <: InlineString}
