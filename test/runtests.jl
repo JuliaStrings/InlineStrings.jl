@@ -500,3 +500,15 @@ end
     @test typeof(inline127"a") == String127
     @test typeof(inline255"a") == String255
 end
+
+@testset "print/show/repr" begin
+    s = InlineString7("abc")
+    # printing
+    @test "$(s)x" == "abcx"
+    @test sprint(print, s) == sprint(print, String(s)) == "abc"
+    # in the repl
+    @test sprint(show, MIME("text/plain"), s) == sprint(show, MIME("text/plain"), String(s)) == "\"abc\""
+    # repr
+    @test sprint(show, s) == "String7(\"abc\")"
+    @test eval(Meta.parse(repr(s))) === s
+end

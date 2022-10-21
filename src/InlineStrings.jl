@@ -150,6 +150,13 @@ end
 Base.Vector{UInt8}(s::InlineString) = Vector{UInt8}(codeunits(s))
 Base.Array{UInt8}(s::InlineString) = Vector{UInt8}(codeunits(s))
 
+Base.show(io::IO, ::MIME"text/plain", s::InlineString) = Base.print_quoted(io, s)
+function Base.show(io::IO, s::InlineString)  # So `repr` shows how to recreate `s`
+    print(io, typeof(s), "(")
+    Base.print_quoted(io, s)
+    print(io, ")")
+end
+
 # add a codeunit to end of string method
 function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
     if T === InlineString1
