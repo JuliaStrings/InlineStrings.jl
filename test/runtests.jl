@@ -381,11 +381,16 @@ for (i, case) in enumerate(testcases)
     println("testing case = $i")
     buf, check, opts, checkcode = case
     res = Parsers.xparse(InlineString7, buf; opts...)
-    @test check === res.val
+    # in Parsers.jl pre-v2.5, we failed to include the string value on INVALID
+    @test check === res.val || (i == 14 && res.val === InlineString7(""))
     if Parsers.ok(checkcode) && Parsers.delimited(checkcode) && !Parsers.newline(checkcode)
         # due to a Parsers.jl bug in pre-v2.5, String parsing inaccurately included the
         # EOF code when it shouldn't have; so we allow either in our tests.
         code = res.code & ~EOF
+    elseif i == 11
+        # due to a Parsers.jl bug in pre-v2.5, String parsing failed to include the
+        # ESCAPED_STRING code when it should have
+        code = res.code | ESCAPED_STRING
     else
         code = res.code
     end
