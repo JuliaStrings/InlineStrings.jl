@@ -346,19 +346,19 @@ testcases = [
     (" \" \" ", InlineString7(" "), NamedTuple(), OK | QUOTED | EOF), # quoted
     ("NA", InlineString7(), (; sentinel=["NA"]), EOF | SENTINEL), # sentinel
     ("\"\"", InlineString7(), NamedTuple(), OK | QUOTED | EOF), # same e & cq
-    ("\"\",", InlineString7(), NamedTuple(), OK | QUOTED | EOF | DELIMITED), # same e & cq
+    ("\"\",", InlineString7(), NamedTuple(), OK | QUOTED | DELIMITED), # same e & cq
     ("\"\"\"\"", InlineString7("\""), NamedTuple(), OK | QUOTED | ESCAPED_STRING | EOF), # same e & cq
-    ("\"\\", InlineString7(), (; escapechar=UInt8('\\')), OK | QUOTED | INVALID_QUOTED_FIELD | EOF), # \\ e, invalid quoted
+    ("\"\\", InlineString7(), (; escapechar=UInt8('\\')), OK | QUOTED | ESCAPED_STRING | INVALID_QUOTED_FIELD | EOF), # \\ e, invalid quoted
     ("\"\\\"\"", InlineString7("\""), (; escapechar=UInt8('\\')), OK | QUOTED | ESCAPED_STRING | EOF), # \\ e, valid
     ("\"\"", InlineString7(), (; escapechar=UInt8('\\')), OK | QUOTED | EOF), # diff e & cq
-    ("\"a", InlineString7(), NamedTuple(), OK | QUOTED | INVALID_QUOTED_FIELD | EOF), # invalid quoted
+    ("\"a", InlineString7("a"), NamedTuple(), OK | QUOTED | INVALID_QUOTED_FIELD | EOF), # invalid quoted
     ("\"a\"", InlineString7("a"), NamedTuple(), OK | QUOTED | EOF), # quoted
     ("\"a\" ", InlineString7("a"), NamedTuple(), OK | QUOTED | EOF), # quoted
-    ("\"a\",", InlineString7("a"), NamedTuple(), OK | QUOTED | EOF | DELIMITED), # quoted
-    ("a,", InlineString7("a"), NamedTuple(), OK | EOF | DELIMITED),
-    ("a__", InlineString7("a"), (; delim="__"), OK | EOF | DELIMITED),
-    ("a,", InlineString7("a"), (; ignorerepeated=true), OK | EOF | DELIMITED),
-    ("a__", InlineString7("a"), (; delim="__", ignorerepeated=true), OK | EOF | DELIMITED),
+    ("\"a\",", InlineString7("a"), NamedTuple(), OK | QUOTED | DELIMITED), # quoted
+    ("a,", InlineString7("a"), NamedTuple(), OK | DELIMITED),
+    ("a__", InlineString7("a"), (; delim="__"), OK | DELIMITED),
+    ("a,", InlineString7("a"), (; ignorerepeated=true), OK | DELIMITED),
+    ("a__", InlineString7("a"), (; delim="__", ignorerepeated=true), OK | DELIMITED),
     ("a\n", InlineString7("a"), (; ignorerepeated=true), OK | NEWLINE | EOF),
     ("a\r", InlineString7("a"), (; ignorerepeated=true), OK | NEWLINE | EOF),
     ("a\r\n", InlineString7("a"), (; ignorerepeated=true), OK | NEWLINE | EOF),
@@ -381,8 +381,20 @@ for (i, case) in enumerate(testcases)
     println("testing case = $i")
     buf, check, opts, checkcode = case
     res = Parsers.xparse(InlineString7, buf; opts...)
-    @test check === res.val
-    @test checkcode == res.code
+    # in Parsers.jl pre-v2.5, we failed to include the string value on INVALID
+    @test check === res.val || (i == 14 && res.val === InlineString7(""))
+    if Parsers.ok(checkcode) && Parsers.delimited(checkcode) && !Parsers.newline(checkcode)
+        # due to a Parsers.jl bug in pre-v2.5, String parsing inaccurately included the
+        # EOF code when it shouldn't have; so we allow either in our tests.
+        code = res.code & ~EOF
+    elseif i == 11
+        # due to a Parsers.jl bug in pre-v2.5, String parsing failed to include the
+        # ESCAPED_STRING code when it should have
+        code = res.code | ESCAPED_STRING
+    else
+        code = res.code
+    end
+    @test checkcode == code
 end
 
 res = Parsers.xparse(InlineString1, "")
