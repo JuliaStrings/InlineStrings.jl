@@ -337,6 +337,15 @@ function Base.write(io::IO, x::T) where {T <: InlineString}
     end
 end
 
+# without this method the fallback will try to write more than the codeunits
+function Base.write(io::IO, x::Base.CodeUnits{UInt8,<:InlineString})
+    s = 0
+    for j ∈ 1:ncodeunits(x.s)
+        s += write(io, codeunit(x.s, j))
+    end
+    s
+end
+
 function Base.read(s::IO, ::Type{T}) where {T <: InlineString}
     return read!(s, Ref{T}())[]::T
 end

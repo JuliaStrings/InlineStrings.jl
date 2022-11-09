@@ -127,6 +127,12 @@ S = InlineString15
 @test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=3, tail=-3)
 @test_throws ArgumentError chop(S("∀ϵ∃Δ"), head=-3, tail=-3)
 
+# check that writing code units works as expected
+io = IOBuffer()
+cu = codeunits(InlineString("hello"))
+@test write(io, cu) == 5
+@test take!(io) == codeunits("hello")
+
 if isdefined(Base, :chopprefix)
 @test chopprefix(abc, "a") === InlineString3("bc")
 @test chopprefix(abc, "bc") === abc
