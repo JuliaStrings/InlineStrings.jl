@@ -339,6 +339,8 @@ const INLINES = map(InlineString, STRINGS)
         @test last(x, sizeof(x)) == last(y, sizeof(y))
         y != "" && @test last(x, sizeof(x) - 1) == last(y, sizeof(y) - 1)
         @test last(x, sizeof(x) + 1) == last(y, sizeof(y) + 1)
+        # https://github.com/JuliaDatabases/SQLite.jl/issues/306
+        @test unsafe_string(Base.unsafe_convert(Ptr{UInt8}, Base.cconvert(Ptr{UInt8}, x))) == y
     end
 end
 
