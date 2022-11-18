@@ -149,16 +149,25 @@ function Base.Symbol(x::T) where {T <: InlineString}
         (Ref{T}, Int), ref, sizeof(x))
 end
 
-Base.cconvert(::Type{Ptr{UInt8}}, x::InlineString1) = Ref{InlineString1}(x)
-Base.cconvert(::Type{Ptr{Int8}}, x::InlineString1) = Ref{InlineString1}(x)
+Base.cconvert(::Type{Ptr{UInt8}}, x::InlineString1) = Base.cconvert(Ptr{UInt8}, InlineString3(x))
+Base.cconvert(::Type{Ptr{Int8}}, x::InlineString1) = Base.cconvert(Ptr{Int8}, InlineString3(x))
+Base.cconvert(::Type{Cstring}, x::InlineString1) = Base.cconvert(Cstring, InlineString3(x))
 Base.cconvert(::Type{Ptr{UInt8}}, x::T) where {T <: InlineString} =
     Ref{T}(_bswap(clear_n_bytes(x, 1)))
 Base.cconvert(::Type{Ptr{Int8}}, x::T) where {T <: InlineString} =
     Ref{T}(_bswap(clear_n_bytes(x, 1)))
+function Base.cconvert(::Type{Cstring}, x::T) where {T <: InlineString}
+    ref = Ref{T}(_bswap(clear_n_bytes(x, 1)))
+    Base.containsnul(Ptr{Int8}(pointer_from_objref(ref)), sizeof(x)) &&
+        throw(ArgumentError("embedded NULs are not allowed in C strings: $x"))
+    return ref
+end
 Base.unsafe_convert(::Type{Ptr{UInt8}}, x::Ref{T}) where {T <: InlineString} =
     Ptr{UInt8}(pointer_from_objref(x))
 Base.unsafe_convert(::Type{Ptr{Int8}}, x::Ref{T}) where {T <: InlineString} =
     Ptr{Int8}(pointer_from_objref(x))
+Base.unsafe_convert(::Type{Cstring}, s::Ref{T}) where {T <: InlineString} =
+    Cstring(Base.unsafe_convert(Ptr{Cchar}, s))
 
 Base.Vector{UInt8}(s::InlineString) = Vector{UInt8}(codeunits(s))
 Base.Array{UInt8}(s::InlineString) = Vector{UInt8}(codeunits(s))
