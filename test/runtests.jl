@@ -254,6 +254,9 @@ for S in SUBTYPES
     end
 end
 
+# can't contain NUL when converting to Cstring
+@test_throws ArgumentError Base.cconvert(Cstring, InlineString("a\0c"))
+
 end # @testset
 
 const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
@@ -339,6 +342,10 @@ const INLINES = map(InlineString, STRINGS)
         @test last(x, sizeof(x)) == last(y, sizeof(y))
         y != "" && @test last(x, sizeof(x) - 1) == last(y, sizeof(y) - 1)
         @test last(x, sizeof(x) + 1) == last(y, sizeof(y) + 1)
+        # https://github.com/JuliaDatabases/SQLite.jl/issues/306
+        @test unsafe_string(Base.unsafe_convert(Ptr{UInt8}, Base.cconvert(Ptr{UInt8}, x))) == y
+        @test unsafe_string(Base.unsafe_convert(Ptr{Int8}, Base.cconvert(Ptr{Int8}, x))) == y
+        @test unsafe_string(Base.unsafe_convert(Cstring, Base.cconvert(Cstring, x))) == y
     end
 end
 
