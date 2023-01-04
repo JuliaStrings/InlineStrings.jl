@@ -649,7 +649,7 @@ summed_type(::Type{InlineString15}, ::Type{InlineString1}) = InlineString31
 summed_type(::Type{InlineString15}, ::Type{InlineString3}) = InlineString31
 summed_type(::Type{InlineString15}, ::Type{InlineString7}) = InlineString31
 summed_type(::Type{InlineString15}, ::Type{InlineString15}) = InlineString31
-summed_type(a::Type{<:SmallInlineString}, b::Type{<:SmallInlineString}) = summed_type(b, a)
+summed_type(a::Type{<:SmallInlineStrings}, b::Type{<:SmallInlineStrings}) = summed_type(b, a)
 
 function Base.repeat(x::T, r::Integer) where {T <: InlineString}
     r < 0 && throw(ArgumentError("can't repeat a string $r times"))
