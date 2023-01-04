@@ -626,17 +626,15 @@ Base.string(a::TinyInlineStrings, b::TinyInlineStrings, c::TinyInlineStrings) = 
 # Only benefit from keeping the small-ish strings as InlineStrings
 function _string(a::Ta, b::Tb) where {Ta <: SmallInlineStrings, Tb <: SmallInlineStrings}
     T = summed_type(Ta, Tb)
-    sz_a = Int(!isa(a, InlineString1))
-    sz_b = Int(!isa(b, InlineString1))
+    lb_a = Int(!isa(a, InlineString1)) # no "length byte" to remove if InlineString1
+    lb_b = Int(!isa(b, InlineString1))
     len_a = sizeof(a)
     len_b = sizeof(b)
-    a2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(a, 8*sz_a)), 8 * (sizeof(T) - sizeof(Ta) + sz_a))
-    b2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(b, 8*sz_b)), 8 * (sizeof(T) - sizeof(Tb) + sz_b - len_a))
-    len = _oftype(T, len_a + len_b)
-    # @show bitstring(a2)
-    # @show bitstring(b2)
-    # @show bitstring(len)
-    return Base.or_int(Base.or_int(a2, b2), len)
+    # Remove length byte (lshr), grow to new size (zext), move chars forward (shl).
+    a2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(a, 8*lb_a)), 8 * (sizeof(T) - sizeof(Ta) + lb_a))
+    b2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(b, 8*lb_b)), 8 * (sizeof(T) - sizeof(Tb) + lb_b - len_a))
+    lb = _oftype(T, len_a + len_b)  # new length byte
+    return Base.or_int(Base.or_int(a2, b2), lb)
 end
 
 summed_type(::Type{InlineString1}, ::Type{InlineString1}) = InlineString3
