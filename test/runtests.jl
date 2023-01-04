@@ -69,7 +69,7 @@ x = InlineString1(buf)
 @test InlineString(String1("a")) === String1("a")
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/2
-@test string.(AbstractString[]) == AbstractString[]
+@test eltype(string.(AbstractString[])) == AbstractString
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/8
 # construction from pointer
