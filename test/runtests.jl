@@ -69,8 +69,7 @@ x = InlineString1(buf)
 @test InlineString(String1("a")) === String1("a")
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/2
-x = InlineString("hey")
-@test typeof(string(x)) == String
+@test string.(AbstractString[]) == AbstractString[]
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/8
 # construction from pointer
