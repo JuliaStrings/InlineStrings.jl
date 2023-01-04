@@ -624,8 +624,6 @@ const _SmallerInlineStrings = Union{InlineString1, InlineString3, InlineString7}
 Base.string(a::_SmallerInlineStrings, b::_SmallerInlineStrings, c::_SmallerInlineStrings) =
     _string(_string(a, b), c)
 const _SmallestInlineStrings = Union{InlineString1, InlineString3}
-Base.string(a::_SmallestInlineStrings, b::_SmallestInlineStrings, c::_SmallestInlineStrings) =
-    _string(_string(a, b), c)
 Base.string(a::_SmallestInlineStrings, b::_SmallestInlineStrings, c::_SmallestInlineStrings, d::_SmallestInlineStrings) =
     _string(_string(_string(a, b), c), d)
 
