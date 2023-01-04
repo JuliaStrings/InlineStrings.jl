@@ -73,6 +73,8 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
     end
 end
 
+const SmallInlineStrings = Union{String1, String3, String7, String15}
+
 # used to zero out n lower bytes of an inline string
 clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
 _bswap(x::T) where {T <: InlineString} = T === InlineString1 ? x : Base.bswap_int(x)
@@ -595,10 +597,11 @@ end
 end
 
 const BaseStrs = Union{Char, String, SubString{String}}
-Base.string(a::InlineString) = String(a)
+Base.string(a::InlineString) = a
 Base.string(a::InlineString...) = _string(a...)
 Base.string(a::BaseStrs, b::InlineString) = _string(a, b)
 Base.string(a::BaseStrs, b::BaseStrs, c::InlineString) = _string(a, b, c)
+
 @inline function _string(a::Union{BaseStrs, InlineString}...)
     n = 0
     for v in a
@@ -615,6 +618,38 @@ Base.string(a::BaseStrs, b::BaseStrs, c::InlineString) = _string(a, b, c)
     end
     return out
 end
+
+# For more and/or bigger InlineStrings creating a `Base.String` is faster
+const TinyInlineStrings = Union{InlineString1, InlineString3, InlineString7}
+Base.string(a::TinyInlineStrings, b::TinyInlineStrings, c::TinyInlineStrings) = _string(_string(a, b), c)
+
+# Only benefit from keeping the small-ish strings as InlineStrings
+function _string(a::Ta, b::Tb) where {Ta <: SmallInlineStrings, Tb <: SmallInlineStrings}
+    T = summed_type(Ta, Tb)
+    sz_a = Int(!isa(a, InlineString1))
+    sz_b = Int(!isa(b, InlineString1))
+    len_a = sizeof(a)
+    len_b = sizeof(b)
+    a2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(a, 8*sz_a)), 8 * (sizeof(T) - sizeof(Ta) + sz_a))
+    b2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(b, 8*sz_b)), 8 * (sizeof(T) - sizeof(Tb) + sz_b - len_a))
+    len = _oftype(T, len_a + len_b)
+    # @show bitstring(a2)
+    # @show bitstring(b2)
+    # @show bitstring(len)
+    return Base.or_int(Base.or_int(a2, b2), len)
+end
+
+summed_type(::Type{InlineString1}, ::Type{InlineString1}) = InlineString3
+summed_type(::Type{InlineString3}, ::Type{InlineString1}) = InlineString7
+summed_type(::Type{InlineString3}, ::Type{InlineString3}) = InlineString7
+summed_type(::Type{InlineString7}, ::Type{InlineString1}) = InlineString15
+summed_type(::Type{InlineString7}, ::Type{InlineString3}) = InlineString15
+summed_type(::Type{InlineString7}, ::Type{InlineString7}) = InlineString15
+summed_type(::Type{InlineString15}, ::Type{InlineString1}) = InlineString31
+summed_type(::Type{InlineString15}, ::Type{InlineString3}) = InlineString31
+summed_type(::Type{InlineString15}, ::Type{InlineString7}) = InlineString31
+summed_type(::Type{InlineString15}, ::Type{InlineString15}) = InlineString31
+summed_type(a::Type{<:InlineString}, b::Type{<:InlineString}) = summed_type(b, a)
 
 function Base.repeat(x::T, r::Integer) where {T <: InlineString}
     r < 0 && throw(ArgumentError("can't repeat a string $r times"))
@@ -886,9 +921,6 @@ end
 ## InlineString sorting
 using Base.Sort, Base.Order
 
-# Only small-ish InlineStrings benefit from RadixSort algorithm
-const SmallInlineStrings = Union{String1, String3, String7, String15}
-
 # And under certain thresholds, MergeSort is faster than RadixSort, even for small InlineStrings
 const MergeSortThresholds = Dict(
     1 => 2^5,
@@ -900,6 +932,7 @@ const MergeSortThresholds = Dict(
 struct InlineStringSortAlg <: Algorithm end
 const InlineStringSort = InlineStringSortAlg()
 
+# Only small-ish InlineStrings benefit from RadixSort algorithm
 Base.Sort.defalg(::AbstractArray{<:Union{SmallInlineStrings, Missing}}) = InlineStringSort
 
 struct Radix
