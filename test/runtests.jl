@@ -351,7 +351,7 @@ end
 
 @testset "`string` / `*`" begin
     # Check `string` overload handles `String1` being concat with other small InlineStrings,
-    # because it's easiest to mis-handle `String1` as it doesn't have a length byte.
+    # because it is easy to mishandle `String1` as it doesn't have a length byte.
     a = "a"
     @test String1(a) * String1(a) == a * a
     @test String1(a) * String1(a) isa InlineString3
@@ -363,12 +363,12 @@ end
     @test String1(a) * String15(b) == a * b
     @test String1(a) * String15(b) isa InlineString31
     @test String1(a) * String3(b) * String7(b) == a * b * b
-    @test String1(a) * String3(b) * String7(b) isa String15
+    @test String1(a) * String3(b) * String7(b) isa InlineString15
     # Check some other combination of small inline strings also work as expected
-    @test String3(a) * String7(b) == a * b * b
-    @test String3(a) * String7(b) isa String15
+    @test String3(a) * String7(b) == a * b
+    @test String3(a) * String7(b) isa InlineString15
     @test String3(a) * String3(b) * String7(b) == a * b * b
-    @test String3(a) * String3(b) * String7(b) isa String15
+    @test String3(a) * String3(b) * String7(b) isa InlineString15
 end
 
 @testset "InlineString parsing" begin
