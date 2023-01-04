@@ -276,6 +276,7 @@ const INLINES = map(InlineString, STRINGS)
         @test Array{UInt8}(x) == Array{UInt8}(y)
         @test isascii(x) == isascii(y)
         @test x * x == y * y
+        @test x * x * x == y * y * y
         @test x^5 == y^5
         @test string(x) == string(y)
         @test join([x, x]) == join([y, y])
@@ -346,6 +347,28 @@ const INLINES = map(InlineString, STRINGS)
         @test unsafe_string(Base.unsafe_convert(Ptr{Int8}, Base.cconvert(Ptr{Int8}, x))) == y
         @test unsafe_string(Base.unsafe_convert(Cstring, Base.cconvert(Cstring, x))) == y
     end
+end
+
+@testset "`string` / `*`" begin
+    # Check `string` overload handles `String1` being concat with other small InlineStrings,
+    # because it's easiest to mis-handle `String1` as it doesn't have a length byte.
+    a = "a"
+    @test String1(a) * String1(a) == a * a
+    @test String1(a) * String1(a) isa InlineString3
+    b = "bb"
+    @test String1(a) * String3(b) == a * b
+    @test String1(a) * String3(b) isa InlineString7
+    @test String1(a) * String7(b) == a * b
+    @test String1(a) * String7(b) isa InlineString15
+    @test String1(a) * String15(b) == a * b
+    @test String1(a) * String15(b) isa InlineString31
+    @test String1(a) * String3(b) * String7(b) == a * b * b
+    @test String1(a) * String3(b) * String7(b) isa String15
+    # Check some other combination of small inline strings also work as expected
+    @test String3(a) * String7(b) == a * b * b
+    @test String3(a) * String7(b) isa String15
+    @test String3(a) * String3(b) * String7(b) == a * b * b
+    @test String3(a) * String3(b) * String7(b) isa String15
 end
 
 @testset "InlineString parsing" begin
