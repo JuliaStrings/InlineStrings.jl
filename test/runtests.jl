@@ -1,18 +1,7 @@
-using Test, InlineStrings, Parsers, Serialization, Random
-import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_DELIMITER, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS
+using Test, TestItems, TestItemRunner
+using InlineStrings
 
-const SUBTYPES = (
-    InlineString1,
-    InlineString3,
-    InlineString7,
-    InlineString15,
-    InlineString31,
-    InlineString63,
-    InlineString127,
-    InlineString255,
-)
-
-@testset "InlineString basics" begin
+@testitem "InlineString basics" begin
 
 y = "abcdef"
 x = InlineString(y)
@@ -229,24 +218,34 @@ S = InlineString31
 @test strip(S("foobarfoo"), ('f','o')) === S("bar")
 @test strip(ispunct, S("¡Hola!")) === S("Hola")
 
+const SUBTYPES = (
+    InlineString1,
+    InlineString3,
+    InlineString7,
+    InlineString15,
+    InlineString31,
+    InlineString63,
+    InlineString127,
+    InlineString255,
+)
 # getindex
 for S in SUBTYPES
     if S == InlineString1
-        x = S("x")
-        @test x[1] == 'x'
-        @test x[1:1] isa InlineString3
-        @test x[1:1] === view(x, 1:1) === InlineString3(x)
-        @test x[2:1] === view(x, 2:1) === InlineString3("")
-        @test_throws BoundsError x[2]
+        z = S("z")
+        @test z[1] == 'z'
+        @test z[1:1] isa InlineString3
+        @test z[1:1] === view(z, 1:1) === InlineString3(z)
+        @test z[2:1] === view(z, 2:1) === InlineString3("")
+        @test_throws BoundsError z[2]
     else
-        abc = S("abc")
-        @test abc[1] == 'a'
-        @test abc[1:2] isa S
-        @test abc[1:2] === view(abc, 1:2) === S("ab")
-        @test abc[2:1] === view(abc, 2:1) === S("")
-        @test abc[Base.OneTo(2)] === S("ab")
-        @test_throws BoundsError abc[4]
-        @test_throws BoundsError abc[1:4]
+        abz = S("abz")
+        @test abz[1] == 'a'
+        @test abz[1:2] isa S
+        @test abz[1:2] === view(abz, 1:2) === S("ab")
+        @test abz[2:1] === view(abz, 2:1) === S("")
+        @test abz[Base.OneTo(2)] === S("ab")
+        @test_throws BoundsError abz[4]
+        @test_throws BoundsError abz[1:4]
         @test S("÷2")[1:3] === S("÷2")
         @test_throws StringIndexError S("÷2")[2]
         @test_throws StringIndexError S("÷2")[1:2]
@@ -256,12 +255,12 @@ end
 # can't contain NUL when converting to Cstring
 @test_throws ArgumentError Base.cconvert(Cstring, InlineString("a\0c"))
 
-end # @testset
+end # @testitem basics
 
-const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
-const INLINES = map(InlineString, STRINGS)
+@testitem "InlineString operations" begin
+    const STRINGS = ["", "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255]
+    const INLINES = map(InlineString, STRINGS)
 
-@testset "InlineString operations" begin
     for (x, y) in zip(INLINES, STRINGS)
         @test codeunits(x) == codeunits(y)
         @test sizeof(x) == sizeof(y)
@@ -349,7 +348,7 @@ const INLINES = map(InlineString, STRINGS)
     end
 end
 
-@testset "`string` / `*`" begin
+@testitem "`string` / `*`" begin
     # Check `string` overload handles `String1` being concat with other small InlineStrings,
     # because it is easy to mishandle `String1` as it doesn't have a length byte.
     a = "a"
@@ -371,7 +370,9 @@ end
     @test String3(a) * String3(b) * String7(b) isa InlineString15
 end
 
-@testset "InlineString parsing" begin
+@testitem "InlineString parsing" begin
+using Parsers
+using Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_DELIMITER, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS
 testcases = [
     ("", InlineString7(""), NamedTuple(), OK | EOF),
     (" ", InlineString7(" "), NamedTuple(), OK | EOF),
@@ -449,9 +450,11 @@ res = Parsers.xparse(InlineString7, buf, pos, len, opts, Any)
 @test res isa Parsers.Result{Any}
 @test res.val == "abc"
 
-end # @testset
+end # @testitem
 
-@testset "InlineString Serialization symmetry" begin
+@testitem "InlineString Serialization symmetry" begin
+    using Serialization
+
     for str in ("",  "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255)
         buf = IOBuffer()
         i_str = InlineString(str)
@@ -462,9 +465,9 @@ end # @testset
         @test typeof(i_str_copy) == typeof(i_str)
         @test i_str_copy == i_str
     end
-end # @testset
+end # @testitem
 
-@testset "alias tests" begin
+@testitem "alias tests" begin
     @test String1 == InlineString1
     @test String3 == InlineString3
     @test String7 == InlineString7
@@ -475,7 +478,8 @@ end # @testset
     @test String255 == InlineString255
 end
 
-@testset "sorting tests" begin
+@testitem "sorting tests" begin
+    using Random: randstring
     for nelems in (50, 100, 500, 1000, 5000, 100_000)
         for T in (String1, String3, String7, String15, String31, String63, String127, String255)
             x = [randstring(rand(1:(max(1, sizeof(T) - 1)))) for _ = 1:nelems];
@@ -489,7 +493,8 @@ end
     @test isequal(x, ["a", "b", missing])
 end
 
-@testset "inlinestrings" begin
+@testitem "inlinestrings" begin
+    using Random: randstring
 
     @test inlinestrings([]) == []
 
@@ -527,14 +532,14 @@ end
     @test inlinestrings([missing, "e"]) isa Vector{Union{Missing, String1}}
 end
 
-@testset "reverse" begin
+@testitem "reverse" begin
     words = split(read(joinpath(dirname(pathof(InlineStrings)), "../test/utf8.txt"), String); keepempty=false)
     for x in words
         @test InlineString(x) == String(x)
     end
 end
 
-@testset "macros" begin
+@testitem "macros" begin
     x = inline"This is a macro test"
     @test String(x) == "This is a macro test"
     @test typeof(x) == String31
@@ -548,7 +553,7 @@ end
     @test typeof(inline255"a") == String255
 end
 
-@testset "print/show/repr" begin
+@testitem "print/show/repr" begin
     s = InlineString7("abc")
     # printing
     @test "$(s)x" == "abcx"
@@ -559,3 +564,5 @@ end
     @test sprint(show, s) == "String7(\"abc\")"
     @test eval(Meta.parse(repr(s))) === s
 end
+
+@run_package_tests
