@@ -1,5 +1,4 @@
-using Test, TestItems, TestItemRunner
-using InlineStrings
+using TestItems, TestItemRunner
 
 @testitem "InlineString basics" begin
 
