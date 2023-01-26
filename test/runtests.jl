@@ -558,4 +558,7 @@ end
     # repr
     @test sprint(show, s) == "String7(\"abc\")"
     @test eval(Meta.parse(repr(s))) === s
+
+    @test repr(String31["foo", "bar"]) == "String31[\"foo\", \"bar\"]"
+    @test repr(InlineString[inline1"a", inline15"a"]) == "InlineString[String1(\"a\"), String15(\"a\")]"
 end
