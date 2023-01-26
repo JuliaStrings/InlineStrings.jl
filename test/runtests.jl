@@ -1,5 +1,8 @@
-using Test, TestItems, TestItemRunner
-using InlineStrings
+using Distributed
+addprocs(2)
+@everywhere using Test, ReTestItems, InlineStrings
+
+runtests(InlineStrings; verbose=1)
 
 @testitem "InlineString basics" begin
 
@@ -564,5 +567,3 @@ end
     @test sprint(show, s) == "String7(\"abc\")"
     @test eval(Meta.parse(repr(s))) === s
 end
-
-@run_package_tests
