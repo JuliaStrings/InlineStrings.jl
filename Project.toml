@@ -18,9 +18,11 @@ julia = "1.6"
 
 [weakdeps]
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
+Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 
 [extensions]
 ArrowTypesExt = "ArrowTypes"
+ParsersExt = "Parsers"
 
 [targets]
-test = ["Arrow", "Test", "Random", "Serialization"]
+test = ["Arrow", "Test", "Parsers", "Random", "Serialization"]
