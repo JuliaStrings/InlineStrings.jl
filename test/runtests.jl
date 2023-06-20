@@ -562,3 +562,8 @@ end
     @test repr(String31["foo", "bar"]) == "String31[\"foo\", \"bar\"]"
     @test repr(InlineString[inline1"a", inline15"a"]) == "InlineString[String1(\"a\"), String15(\"a\")]"
 end
+
+# only test package extension on >= 1.9.0
+if VERSION >= v"1.9.0"
+include(joinpath(dirname(pathof(InlineStrings)), "../ext/tests.jl"))
+end
