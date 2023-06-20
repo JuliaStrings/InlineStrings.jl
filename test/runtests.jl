@@ -564,6 +564,6 @@ end
 end
 
 # only test package extension on >= 1.9.0
-if VERSION >= v"1.9.0"
+if VERSION >= v"1.9.0" && Sys.WORD_SIZE == 64
 include(joinpath(dirname(pathof(InlineStrings)), "../ext/tests.jl"))
 end
