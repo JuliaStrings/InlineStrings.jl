@@ -679,7 +679,9 @@ function Base.repeat(x::T, r::Integer) where {T <: InlineString}
 end
 
 # copy/pasted from strings/util.jl
-function Base.startswith(a::T, b::Union{String, SubString{String}, InlineString}) where {T <: InlineString}
+#TODO: optimize this
+Base.startswith(a::InlineString, b::InlineString) = invoke(startswith, Tuple{AbstractString, AbstractString}, a, b)
+function Base.startswith(a::T, b::Union{String, SubString{String}}) where {T <: InlineString}
     cub = ncodeunits(b)
     ncodeunits(a) < cub && return false
     ref = Ref{T}(_bswap(a))
@@ -693,7 +695,9 @@ function Base.startswith(a::T, b::Union{String, SubString{String}, InlineString}
     end
 end
 
-function Base.endswith(a::T, b::Union{String, SubString{String}, InlineString}) where {T <: InlineString}
+#TODO: optimize this
+Base.endswith(a::InlineString, b::InlineString) = invoke(endswith, Tuple{AbstractString, AbstractString}, a, b)
+function Base.endswith(a::T, b::Union{String, SubString{String}}) where {T <: InlineString}
     cub = ncodeunits(b)
     astart = ncodeunits(a) - ncodeunits(b) + 1
     astart < 1 && return false
