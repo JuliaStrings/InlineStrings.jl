@@ -57,8 +57,6 @@ promoted `InlineString` type, the `inlinestrings(A)` utility function is exporte
 An inline string is value equal (`==`), but not identical equal (`===`) to the corresponding `String`:
 
 ```julia-repl
-julia> String15("abc")
-"abc"
 
 julia> i = String15("abc")
 "abc"
