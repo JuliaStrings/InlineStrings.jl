@@ -91,7 +91,8 @@ Dict{String15, Int64} with 1 entry:
 
 ```
 
-Note how the `Dict` is constructed with only one key-value pair. This is because we've only given the dictionary a single key (`Dict`s use the object's hash as it's underlying key), since `i` and `s` implement the same hash:
+Note how the `Dict` is passed two key-value pairs but the result contains only one. 
+This is because we've only given the dictionary a single key (`Dict`s use the object's hash as it's underlying key), since `i` and `s` implement the same hash:
 
 ```julia-repl
 julia> hash(i)
