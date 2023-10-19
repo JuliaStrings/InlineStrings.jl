@@ -168,6 +168,10 @@ Base.unsafe_convert(::Type{Ptr{UInt8}}, x::Ref{T}) where {T <: InlineString} =
     Ptr{UInt8}(pointer_from_objref(x))
 Base.unsafe_convert(::Type{Ptr{Int8}}, x::Ref{T}) where {T <: InlineString} =
     Ptr{Int8}(pointer_from_objref(x))
+# Resolve method ambiguities
+Base.unsafe_convert(P::Type{Ptr{UInt8}}, x::Ptr{<:InlineString}) = convert(P, x)
+Base.unsafe_convert(P::Type{Ptr{Int8}}, x::Ptr{<:InlineString}) = convert(P, x)
+
 Base.unsafe_convert(::Type{Cstring}, s::Ref{T}) where {T <: InlineString} =
     Cstring(Base.unsafe_convert(Ptr{Cchar}, s))
 
