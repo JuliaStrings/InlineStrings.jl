@@ -210,12 +210,16 @@ S = InlineString7
 @test rstrip(isnumeric, S("abc0123")) === S("abc")
 @test rstrip(S("ello"), ['e','o']) === S("ell")
 @test rstrip(InlineString1("x")) === InlineString3("x")
+@test_throws ArgumentError rstrip("test", S(" a b c "))
+@test_throws ArgumentError rstrip("test", InlineString1("x"))
 
 @test lstrip(S(" a b c ")) isa S
 @test lstrip(S(" a b c ")) === S("a b c ")
 @test lstrip(isnumeric, S("0123abc")) === S("abc")
 @test lstrip(S("ello"), ['e','o']) === S("llo")
 @test lstrip(InlineString1("x")) === InlineString3("x")
+@test_throws ArgumentError lstrip("test", S(" a b c "))
+@test_throws ArgumentError lstrip("test", InlineString1("x"))
 
 @test strip(InlineString1("x")) === InlineString3("x")
 S = InlineString3
