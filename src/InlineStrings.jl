@@ -613,13 +613,11 @@ end
     return n
 end
 
-const BaseStrs = Union{Char, String, SubString{String}}
+
 Base.string(a::InlineString) = a
 Base.string(a::InlineString...) = _string(a...)
-Base.string(a::BaseStrs, b::InlineString) = _string(a, b)
-Base.string(a::BaseStrs, b::BaseStrs, c::InlineString) = _string(a, b, c)
 
-@inline function _string(a::Union{BaseStrs, InlineString}...)
+@inline function _string(a::InlineString...)
     n = 0
     for v in a
         if v isa Char
