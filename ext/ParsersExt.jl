@@ -1,6 +1,6 @@
 module ParsersExt
 using Parsers
-using InlineStrings: InlineString, InlineString1, addcodeunit
+using InlineStrings: InlineString, addcodeunit
 
 Parsers.xparse(::Type{T}, buf::AbstractString, pos, len, options, ::Type{S}=T) where {T <: InlineString, S} =
     Parsers.xparse(T, codeunits(buf), pos, len, options, S)
@@ -14,16 +14,7 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
         x = T()
     else
         poslen = res.val
-        if T === InlineString1
-            if poslen.len != 1
-                overflowed = true
-                x = T()
-            else
-                Parsers.fastseek!(source, poslen.pos)
-                x = InlineString1(Parsers.peekbyte(source, poslen.pos))
-                Parsers.fastseek!(source, pos + res.tlen - 1)
-            end
-        elseif Parsers.escapedstring(code) || !(source isa AbstractVector{UInt8})
+        if Parsers.escapedstring(code) || !(source isa AbstractVector{UInt8})
             if poslen.len > (sizeof(T) - 1)
                 overflowed = true
                 x = T()

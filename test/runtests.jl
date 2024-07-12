@@ -136,20 +136,20 @@ if isdefined(Base, :chopprefix)
 @test chopprefix(abc, "a") === InlineString3("bc")
 @test chopprefix(abc, "bc") === abc
 @test chopprefix(abc, "abc") === InlineString3("")
-@test chopprefix(InlineString1("a"), "a") === InlineString3("")
+@test chopprefix(InlineString1("a"), "a") === InlineString1("")
 # Regex case
 @test chopprefix(InlineString15("∃∃∃b∃"), r"∃+") === InlineString15("b∃")
-@test chopprefix(InlineString1("a"), r".") === InlineString3("")
+@test chopprefix(InlineString1("a"), r".") === InlineString1("")
 end
 
 if isdefined(Base, :chopsuffix)
 @test chopsuffix(abc, "a") === abc
 @test chopsuffix(abc, "bc") === InlineString3("a")
 @test chopsuffix(abc, "abc") === InlineString3("")
-@test chopsuffix(InlineString1("c"), "c") === InlineString3("")
+@test chopsuffix(InlineString1("c"), "c") === InlineString1("")
 # Regex case
 @test chopsuffix(InlineString15("∃b∃∃∃"), r"∃+") === InlineString15("∃b")
-@test chopsuffix(InlineString1("c"), r".") === InlineString3("")
+@test chopsuffix(InlineString1("c"), r".") === InlineString1("")
 end
 
 if isdefined(Base, :chopprefix) && isdefined(Base, :chopsuffix)
@@ -209,7 +209,7 @@ S = InlineString7
 @test rstrip(S(" a b c ")) === S(" a b c")
 @test rstrip(isnumeric, S("abc0123")) === S("abc")
 @test rstrip(S("ello"), ['e','o']) === S("ell")
-@test rstrip(InlineString1("x")) === InlineString3("x")
+@test rstrip(InlineString1("x")) === InlineString1("x")
 @test_throws ArgumentError rstrip("test", S(" a b c "))
 @test_throws ArgumentError rstrip("test", InlineString1("x"))
 
@@ -217,11 +217,11 @@ S = InlineString7
 @test lstrip(S(" a b c ")) === S("a b c ")
 @test lstrip(isnumeric, S("0123abc")) === S("abc")
 @test lstrip(S("ello"), ['e','o']) === S("llo")
-@test lstrip(InlineString1("x")) === InlineString3("x")
+@test lstrip(InlineString1("x")) === InlineString1("x")
 @test_throws ArgumentError lstrip("test", S(" a b c "))
 @test_throws ArgumentError lstrip("test", InlineString1("x"))
 
-@test strip(InlineString1("x")) === InlineString3("x")
+@test strip(InlineString1("x")) === InlineString1("x")
 S = InlineString3
 @test strip(S("")) === S("")
 @test strip(S(" ")) === S("")
@@ -238,9 +238,9 @@ for S in SUBTYPES
     if S == InlineString1
         x = S("x")
         @test x[1] == 'x'
-        @test x[1:1] isa InlineString3
-        @test x[1:1] === view(x, 1:1) === InlineString3(x)
-        @test x[2:1] === view(x, 2:1) === InlineString3("")
+        @test x[1:1] isa InlineString1
+        @test x[1:1] === view(x, 1:1) === InlineString1(x)
+        @test x[2:1] === view(x, 2:1) === InlineString1("")
         @test_throws BoundsError x[2]
     else
         abc = S("abc")
@@ -437,7 +437,7 @@ for (i, case) in enumerate(testcases)
 end
 
 res = Parsers.xparse(InlineString1, "")
-@test Parsers.overflow(res.code)
+@test !Parsers.overflow(res.code)
 res = Parsers.xparse(InlineString1, "ab")
 @test Parsers.overflow(res.code)
 res = Parsers.xparse(InlineString1, "b")
@@ -482,7 +482,7 @@ end
 @testset "sorting tests" begin
     for nelems in (50, 100, 500, 1000, 5000, 100_000)
         for T in (String1, String3, String7, String15, String31, String63, String127, String255)
-            x = [randstring(rand(1:(max(1, sizeof(T) - 1)))) for _ = 1:nelems];
+            x = [randstring(rand(0:(sizeof(T) - 1))) for _ = 1:nelems];
             y = map(T, x);
             @test sort(x) == sort(y)
             @test sort(x; rev=true) == sort(y; rev=true)
@@ -566,6 +566,9 @@ end
     @test repr(String31["foo", "bar"]) == "String31[\"foo\", \"bar\"]"
     @test repr(InlineString[inline1"a", inline15"a"]) == "InlineString[String1(\"a\"), String15(\"a\")]"
 end
+
+@test inlinestrings(["a", "b", ""]) == [String1("a"), String1("b"), String1("")]
+@test String1("") == ""
 
 # only test package extension on >= 1.9.0
 if VERSION >= v"1.9.0" && Sys.WORD_SIZE == 64
