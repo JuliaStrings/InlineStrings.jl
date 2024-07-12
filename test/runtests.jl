@@ -576,6 +576,94 @@ end
 @test inlinestrings(["a", "b", ""]) == [String1("a"), String1("b"), String1("")]
 @test String1("") == ""
 
+@testset "C-compatibility" begin
+    @testset "Basic C string functions" begin
+        for S in SUBTYPES
+            data = randstring(Core.sizeof(S) - 1)
+            str = S(data)
+            @test (@ccall strlen(str::Cstring)::Csize_t) == length(data)
+        end
+    end
+
+    @testset "C string comparison (strcmp)" begin
+        # Test equal strings
+        s1 = InlineString15("hello")
+        s2 = InlineString15("hello")
+        regular_str = "hello"
+
+        @test (@ccall strcmp(s1::Cstring, s2::Cstring)::Cint) == 0
+        @test (@ccall strcmp(s1::Cstring, regular_str::Cstring)::Cint) == 0
+
+        # Test different strings
+        s3 = InlineString15("hello")
+        s4 = InlineString15("world")
+        result = @ccall strcmp(s3::Cstring, s4::Cstring)::Cint
+        @test result < 0  # "hello" < "world"
+
+        result2 = @ccall strcmp(s4::Cstring, s3::Cstring)::Cint
+        @test result2 > 0  # "world" > "hello"
+
+        # Test with different lengths
+        s5 = InlineString15("test")
+        s6 = InlineString15("testing")
+        result3 = @ccall strcmp(s5::Cstring, s6::Cstring)::Cint
+        @test result3 < 0  # "test" < "testing"
+    end
+
+    @testset "C string functions with special characters" begin
+        # Test with empty string
+        empty_str = InlineString7("")
+        @test (@ccall strlen(empty_str::Cstring)::Csize_t) == 0
+
+        # Test with single character
+        single_char = InlineString3("a")
+        @test (@ccall strlen(single_char::Cstring)::Csize_t) == 1
+        @test (@ccall strcmp(single_char::Cstring, "a"::Cstring)::Cint) == 0
+
+        # Test with numbers and special chars (but not null)
+        special_str = InlineString31("abc123!@#")
+        @test (@ccall strlen(special_str::Cstring)::Csize_t) == 9
+        @test (@ccall strcmp(special_str::Cstring, "abc123!@#"::Cstring)::Cint) == 0
+
+        # Test case sensitivity
+        lower_str = InlineString7("hello")
+        upper_str = InlineString7("HELLO")
+        result = @ccall strcmp(lower_str::Cstring, upper_str::Cstring)::Cint
+        @test result > 0  # lowercase comes after uppercase in ASCII
+    end
+
+    @testset "C compatibility across all InlineString types" begin
+        test_strings = ["a", "ab", "abc", "test", "hello world"]
+
+        for test_str in test_strings
+            for S in SUBTYPES
+                if length(test_str) < Core.sizeof(S)
+                    inline_str = S(test_str)
+
+                    # Test strlen
+                    @test (@ccall strlen(inline_str::Cstring)::Csize_t) == length(test_str)
+
+                    # Test strcmp with original string
+                    @test (@ccall strcmp(inline_str::Cstring, test_str::Cstring)::Cint) == 0
+
+                    # Test that the string content is identical at byte level
+                    @test (@ccall memcmp(inline_str::Ptr{UInt8}, test_str::Ptr{UInt8}, length(test_str)::Csize_t)::Cint) == 0
+                end
+            end
+        end
+    end
+
+    @testset "C string safety - no embedded nulls" begin
+        # Test that strings without embedded nulls work fine
+        safe_str = InlineString15("safe string")
+        @test (@ccall strlen(safe_str::Cstring)::Csize_t) == 11
+
+        # Test that attempting to create Cstring with embedded null throws
+        str_with_null = InlineString15("has\0null")
+        @test_throws ArgumentError Base.cconvert(Cstring, str_with_null)
+    end
+end
+
 # only test package extension on >= 1.9.0
 if VERSION >= v"1.9.0" && Sys.WORD_SIZE == 64
 include(joinpath(dirname(pathof(InlineStrings)), "../ext/tests.jl"))

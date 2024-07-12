@@ -89,7 +89,7 @@ Dict{String15, Int64} with 1 entry:
 
 ```
 
-Note how the `Dict` is passed two key-value pairs but the result contains only one. 
+Note how the `Dict` is passed two key-value pairs but the result contains only one.
 This is because we've only given the dictionary a single key (`Dict`s use the object's hash as it's underlying key), since `i` and `s` implement the same hash:
 
 ```julia-repl
@@ -99,6 +99,22 @@ julia> hash(i)
 julia> hash(s)
 0x7690a66f302b3f70
 ```
+
+#### C compatibility
+
+The codeunits of an inline string are stored in the same byte order as a
+`String`, with a NUL byte guaranteed after the last codeunit. An inline
+string can therefore be passed directly to C functions expecting a
+NUL-terminated string, just like a `String`:
+
+```julia-repl
+julia> s = String15("hello")
+"hello"
+
+julia> @ccall strlen(s::Cstring)::Csize_t
+0x0000000000000005
+```
+
 
 #### Additional details
 
@@ -112,16 +128,18 @@ help?> String15
   String15(ptr::Ptr{UInt8}, [len])
 
 
-  Custom fixed-size string with a fixed size of 16 bytes. 1 byte is used to store the length of the string. If an inline
-  string is shorter than 15 bytes, the entire string still occupies the full 16 bytes since they are, by definition,
-  fixed size. Otherwise, they can be treated just like normal String values. Note that sizeof(x) will return the # of
-  codeunits in an String15 like String, not the total fixed size. For the fixed size, call sizeof(String15). String15 can
-  be constructed from an existing String (String15(x::AbstractString)), from a byte buffer with position and length
-  (String15(buf, pos, len)), from a pointer with optional length (String15(ptr, len)) or built iteratively by starting
-  with x = String15() and calling x, overflowed = InlineStrings.addcodeunit(x, b::UInt8) which returns a new String15
-  with the new codeunit b appended and an overflowed Bool value indicating whether too many codeunits have been appended
-  for the fixed size. When constructed from a pointer, note that the ptr must point to valid memory or program data may
-  become corrupt. If the len argument is specified with the pointer, it must fit within the fixed size of String15; if no
-  length is provided, the C-string is assumed to be NUL-terminated. If the NUL-terminated string ends up longer than can
-  fit in String15, an ArgumentError will be thrown.
+  Custom fixed-size string with a fixed size of 16 bytes. The string data is stored in the same byte order as a String,
+  followed by zeroed padding and a final byte tracking the remaining capacity, which doubles as the NUL terminator when
+  the string is at max length; an inline string can thus be passed directly to C functions expecting a NUL-terminated
+  string (e.g. as Cstring). If an inline string is shorter than 15 bytes, the entire string still occupies the full 16
+  bytes since they are, by definition, fixed size. Otherwise, they can be treated just like normal String values. Note
+  that sizeof(x) will return the # of codeunits in an String15 like String, not the total fixed size. For the fixed
+  size, call sizeof(String15). String15 can be constructed from an existing String (String15(x::AbstractString)), from a
+  byte buffer with position and length (String15(buf, pos, len)), from a pointer with optional length (String15(ptr, len))
+  or built iteratively by starting with x = String15() and calling x, overflowed = InlineStrings.addcodeunit(x, b::UInt8)
+  which returns a new String15 with the new codeunit b appended and an overflowed Bool; if the string is already full,
+  x is returned unchanged and overflowed is true. When constructed from a pointer, note that the ptr must point to valid
+  memory or program data may become corrupt. If the len argument is specified with the pointer, it must fit within the
+  fixed size of String15; if no length is provided, the C-string is assumed to be NUL-terminated. If the NUL-terminated
+  string ends up longer than can fit in String15, an ArgumentError will be thrown.
 ```
