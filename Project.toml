@@ -1,7 +1,7 @@
 name = "InlineStrings"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
 authors = ["Jacob Quinn <quinn.jacobd@gmail.com> and contributors"]
-version = "1.4.1"
+version = "1.4.2"
 
 [deps]
 Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
