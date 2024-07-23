@@ -141,11 +141,11 @@ function Base.Symbol(x::T) where {T <: InlineString}
 end
 
 Base.cconvert(::Type{Ptr{UInt8}}, x::T) where {T <: InlineString} =
-    Ref{T}(_bswap(clear_n_bytes(x, 1)))
+    Ref{T}(_bswap(x))
 Base.cconvert(::Type{Ptr{Int8}}, x::T) where {T <: InlineString} =
-    Ref{T}(_bswap(clear_n_bytes(x, 1)))
+    Ref{T}(_bswap(x))
 function Base.cconvert(::Type{Cstring}, x::T) where {T <: InlineString}
-    ref = Ref{T}(_bswap(clear_n_bytes(x, 1)))
+    ref = Ref{T}(_bswap(x))
     Base.containsnul(Ptr{Int8}(pointer_from_objref(ref)), sizeof(x)) &&
         throw(ArgumentError("embedded NULs are not allowed in C strings: $x"))
     return ref
@@ -177,7 +177,7 @@ end
 
 # add a codeunit to end of string method
 function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
-    len = ncodeunits(x) % UInt8
+    len = Base.trunc_int(UInt8, ncodeunits(x))
     sz = Base.trunc_int(UInt8, sizeof(T))
     shf = Base.zext_int(Int16, max(0x01, sz - len - 0x01)) << 3
     x = Base.or_int(x, Base.shl_int(Base.zext_int(T, b), shf))
