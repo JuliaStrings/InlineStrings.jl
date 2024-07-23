@@ -271,7 +271,7 @@ end
 
 function InlineStringType(n::Integer)
     n > 255 && stringtoolong(InlineString, n)
-    return n < 2  ? InlineString1    : n < 4  ? InlineString3  :
+    return n < 2   ? InlineString1   : n < 4  ? InlineString3  :
            n < 8   ? InlineString7   : n < 16 ? InlineString15 :
            n < 32  ? InlineString31  : n < 64 ? InlineString63 :
            n < 128 ? InlineString127 : InlineString255
