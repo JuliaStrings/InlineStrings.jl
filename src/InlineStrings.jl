@@ -30,9 +30,9 @@ for sz in (2, 4, 8, 16, 32, 64, 128, 256)
             $($nm)(bytes::AbstractVector{UInt8}, pos, len)
             $($nm)(ptr::Ptr{UInt8}, [len])
 
-        Custom C compatible fixed-size string with a fixed size of $($sz) bytes.
-        1 byte is used to store the capacity minus the length of the string. If an
-        inline string is shorter than $($(sz-1)) bytes, the entire
+        Custom fixed-size string with a fixed size of $($sz) bytes.
+        1 byte is used to store the length of the string. If an
+        inline string is shorter than $($(max(1, sz - 1))) bytes, the entire
         string still occupies the full $($sz) bytes since they are,
         by definition, fixed size. Otherwise, they can be treated
         just like normal `String` values. Note that `sizeof(x)` will
