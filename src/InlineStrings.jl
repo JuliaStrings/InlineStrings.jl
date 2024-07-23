@@ -1,7 +1,5 @@
 module InlineStrings
 
-import Base: ==
-
 export InlineString, InlineStringType, inlinestrings
 export @inline_str
 
@@ -290,14 +288,16 @@ macro inline_str(ex)
 end
 
 
-(==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
-function ==(x::String, y::T) where {T <: InlineString}
+Base.:(==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
+function Base.:(==)(x::String, y::T) where {T <: InlineString}
     sizeof(x) == sizeof(y) || return false
     ref = Ref{T}(_bswap(y))
-    return ccall(:memcmp, Cint, (Ptr{UInt8}, Ref{T}, Csize_t),
-            pointer(x), ref, sizeof(x)) == 0
+    GC.@preserve x begin
+        return ccall(:memcmp, Cint, (Ptr{UInt8}, Ref{T}, Csize_t),
+                pointer(x), ref, sizeof(x)) == 0
+    end
 end
-==(y::InlineString, x::String) = x == y
+Base.:(==)(y::InlineString, x::String) = x == y
 
 Base.cmp(a::T, b::T) where {T <: InlineString} =
     Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
