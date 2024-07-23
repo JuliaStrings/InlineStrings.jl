@@ -19,10 +19,10 @@ See more details by looking at individual docs for [`String1`](@ref),
 """
 abstract type InlineString <: AbstractString end
 
-for sz in (1, 4, 8, 16, 32, 64, 128, 256)
-    nm = Symbol(:String, max(1, sz - 1))
-    nma = Symbol(:InlineString, max(1, sz - 1))
-    macro_nm = Symbol(:inline, max(1, sz - 1), :_str)
+for sz in (2, 4, 8, 16, 32, 64, 128, 256)
+    nm = Symbol(:String, sz-1)
+    nma = Symbol(:InlineString, sz-1)
+    macro_nm = Symbol(:inline, sz-1, :_str)
     at_macro_nm = Symbol("@", macro_nm)
     @eval begin
         """
@@ -58,12 +58,12 @@ for sz in (1, 4, 8, 16, 32, 64, 128, 256)
         export $nma
 
         """
-            inline$($(max(1, sz - 1)))"string"
+            inline$($(sz-1))"string"
 
         Macro to create a [`$($nm)`](@ref) with a fixed size of $($sz) bytes.
         """
         macro $macro_nm(ex)
-            T = InlineStringType($(max(1,sz - 1)))
+            T = InlineStringType($(sz - 1))
             T(unescape_string(ex))
         end
 
@@ -75,7 +75,7 @@ const SmallInlineStrings = Union{String1, String3, String7, String15}
 
 # used to zero out n lower bytes of an inline string
 clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
-_bswap(x::T) where {T <: InlineString} = T === InlineString1 ? x : Base.bswap_int(x)
+_bswap(x::T) where {T <: InlineString} = Base.bswap_int(x)
 
 const InlineStringTypes = Union{InlineString1,
                             InlineString3,
@@ -115,26 +115,17 @@ Base.widen(::Type{InlineString63}) = InlineString127
 Base.widen(::Type{InlineString127}) = InlineString255
 Base.widen(::Type{InlineString255}) = String
 
-Base.ncodeunits(::InlineString1) = 1
 Base.ncodeunits(x::InlineString) = Int(Base.trunc_int(UInt8, x))
 Base.codeunit(::InlineString) = UInt8
 
 Base.@propagate_inbounds function Base.codeunit(x::T, i::Int) where {T <: InlineString}
     @boundscheck checkbounds(Bool, x, i) || throw(BoundsError(x, i))
-    if T === InlineString1
-        return Base.bitcast(UInt8, x)
-    else
-        return Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - i)))
-    end
+    return Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - i)))
 end
 
 function Base.String(x::T) where {T <: InlineString}
     len = ncodeunits(x)
     out = Base._string_n(len)
-    if T === InlineString1
-        GC.@preserve out unsafe_store!(pointer(out), codeunit(x, 1))
-        return out
-    end
     ref = Ref{T}(_bswap(x))
     GC.@preserve ref out begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
@@ -149,9 +140,6 @@ function Base.Symbol(x::T) where {T <: InlineString}
         (Ref{T}, Int), ref, sizeof(x))
 end
 
-Base.cconvert(::Type{Ptr{UInt8}}, x::InlineString1) = Base.cconvert(Ptr{UInt8}, InlineString3(x))
-Base.cconvert(::Type{Ptr{Int8}}, x::InlineString1) = Base.cconvert(Ptr{Int8}, InlineString3(x))
-Base.cconvert(::Type{Cstring}, x::InlineString1) = Base.cconvert(Cstring, InlineString3(x))
 Base.cconvert(::Type{Ptr{UInt8}}, x::T) where {T <: InlineString} =
     Ref{T}(_bswap(clear_n_bytes(x, 1)))
 Base.cconvert(::Type{Ptr{Int8}}, x::T) where {T <: InlineString} =
@@ -189,9 +177,6 @@ end
 
 # add a codeunit to end of string method
 function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
-    if T === InlineString1
-        return Base.bitcast(InlineString1, b), false
-    end
     len = Base.trunc_int(UInt8, x)
     sz = Base.trunc_int(UInt8, sizeof(T))
     shf = Base.zext_int(Int16, max(0x01, sz - len - 0x01)) << 3
@@ -199,37 +184,7 @@ function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
     return Base.add_int(x, Base.zext_int(T, 0x01)), (len + 0x01) >= sz
 end
 
-# from String
-InlineString1(byte::UInt8=0x00) = Base.bitcast(InlineString1, byte)
-
-function InlineString1(x::AbstractString)
-    sizeof(x) == 1 || stringtoolong(InlineString1, sizeof(x))
-    return Base.bitcast(InlineString1, codeunit(x, 1))
-end
-
-function InlineString1(buf::AbstractVector{UInt8}, pos=1, len=length(buf))
-    len == 1 || stringtoolong(InlineString1, len)
-    return Base.bitcast(InlineString1, buf[pos])
-end
-
-function InlineString1(ptr::Ptr{UInt8}, len=nothing)
-    ptr == Ptr{UInt8}(0) && nullptr(InlineString1)
-    if len === nothing
-        y, _ = addcodeunit(InlineString1(), unsafe_load(ptr))
-        unsafe_load(ptr, 2) === 0x00 || stringtoolong(InlineString1, 2)
-        return y
-    else
-        len == 1 || stringtoolong(InlineString1, len)
-        return Base.bitcast(InlineString1, unsafe_load(ptr))
-    end
-end
-
-function InlineString1(x::S) where {S <: InlineString}
-    sizeof(x) == 1 || stringtoolong(InlineString1, sizeof(x))
-    return Base.bitcast(InlineString1, codeunit(x, 1))
-end
-
-for T in (:InlineString3, :InlineString7, :InlineString15, :InlineString31, :InlineString63, :InlineString127, :InlineString255)
+for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :InlineString31, :InlineString63, :InlineString127, :InlineString255)
     @eval $T() = Base.zext_int($T, 0x00)
 
     @eval function $T(x::AbstractString)
@@ -304,11 +259,7 @@ for T in (:InlineString3, :InlineString7, :InlineString15, :InlineString31, :Inl
             return Base.add_int(y, Base.zext_int($T, UInt8(len)))
         else
             # promoting smaller InlineString to larger
-            if S === InlineString1
-                y = Base.shl_int(Base.zext_int($T, x), 8 * (sizeof($T) - sizeof(S)))
-            else
-                y = Base.shl_int(Base.zext_int($T, Base.lshr_int(x, 8)), 8 * (sizeof($T) - sizeof(S) + 1))
-            end
+            y = Base.shl_int(Base.zext_int($T, Base.lshr_int(x, 8)), 8 * (sizeof($T) - sizeof(S) + 1))
             return Base.add_int(y, Base.zext_int($T, UInt8(sizeof(x))))
         end
     end
@@ -320,7 +271,7 @@ end
 
 function InlineStringType(n::Integer)
     n > 255 && stringtoolong(InlineString, n)
-    return n == 1  ? InlineString1   : n < 4  ? InlineString3  :
+    return n < 2   ? InlineString1   : n < 4  ? InlineString3  :
            n < 8   ? InlineString7   : n < 16 ? InlineString15 :
            n < 32  ? InlineString31  : n < 64 ? InlineString63 :
            n < 128 ? InlineString127 : InlineString255
@@ -381,7 +332,6 @@ function Base.read(s::IO, ::Type{T}) where {T <: InlineString}
 end
 
 function Base.print(io::IO, x::T) where {T <: InlineString}
-    x isa InlineString1 && return print(io, Char(Base.bitcast(UInt8, x)))
     ref = Ref{T}(_bswap(x))
     return GC.@preserve ref begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
@@ -391,9 +341,6 @@ function Base.print(io::IO, x::T) where {T <: InlineString}
 end
 
 function Base.isascii(x::T) where {T <: InlineString}
-    if T === InlineString1
-        return codeunit(x, 1) < 0x80
-    end
     len = ncodeunits(x)
     x = Base.lshr_int(x, 8 * (sizeof(T) - len))
     for _ = 1:(len >> 2)
@@ -410,7 +357,6 @@ end
 # "mutating" operations; care must be taken here to "clear out"
 # unused bits to ensure our == definition continues to work
 # which compares the full bit contents of inline strings
-Base.chop(s::InlineString1; kw...) = chop(String3(s); kw...)
 function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     if isempty(s)
         return s
@@ -431,7 +377,6 @@ end
 
 Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, Int(first(r)):Int(last(r)))
 
-Base.getindex(s::InlineString1, r::UnitRange{Int}) = getindex(InlineString3(s), r)
 Base.@propagate_inbounds function Base.getindex(s::InlineString, r::UnitRange{Int})
     isempty(r) && return typeof(s)("")
     i = first(r)
@@ -448,7 +393,6 @@ Base.view(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, r)
 
 if isdefined(Base, :chopprefix)
 
-Base.chopprefix(s::InlineString1, prefix::AbstractString) = chopprefix(String3(s), prefix)
 function Base.chopprefix(s::InlineString, prefix::AbstractString)
     if !isempty(prefix) && startswith(s, prefix)
         return _chopprefix(s, prefix)
@@ -456,7 +400,6 @@ function Base.chopprefix(s::InlineString, prefix::AbstractString)
     return s
 end
 
-Base.chopprefix(s::InlineString1, prefix::Regex) = chopprefix(String3(s), prefix)
 function Base.chopprefix(s::InlineString, prefix::Regex)
     m = match(prefix, String(s), firstindex(s), Base.PCRE.ANCHORED)
     m === nothing && return s
@@ -483,7 +426,6 @@ end
 throw_strip_argument_error() =
     throw(ArgumentError("Both arguments are strings. The second argument should be a `Char` or collection of `Char`s"))
 
-Base.lstrip(f, s::InlineString1) = lstrip(f, InlineString3(s))
 function Base.lstrip(f, s::InlineString)
     nc = 0
     len = 0
@@ -499,11 +441,9 @@ function Base.lstrip(f, s::InlineString)
 end
 
 Base.lstrip(::AbstractString, ::InlineString) = throw_strip_argument_error()
-Base.lstrip(::AbstractString, ::InlineString1) = throw_strip_argument_error()
 
 if isdefined(Base, :chopsuffix)
 
-Base.chopsuffix(s::InlineString1, suffix::AbstractString) = chopsuffix(String3(s), suffix)
 function Base.chopsuffix(s::InlineString, suffix::AbstractString)
     if !isempty(suffix) && endswith(s, suffix)
         return _chopsuffix(s, suffix)
@@ -511,7 +451,6 @@ function Base.chopsuffix(s::InlineString, suffix::AbstractString)
     return s
 end
 
-Base.chopsuffix(s::InlineString1, suffix::Regex) = chopsuffix(String3(s), suffix)
 function Base.chopsuffix(s::InlineString, suffix::Regex)
     m = match(suffix, String(s), firstindex(s), Base.PCRE.ENDANCHORED)
     m === nothing && return s
@@ -529,7 +468,6 @@ _chopsuffix(s::InlineString, suffix::AbstractString) = _chopsuffix(s, ncodeunits
     return Base.or_int(s, _oftype(typeof(s), new_n))
 end
 
-Base.rstrip(f, s::InlineString1) = rstrip(f, InlineString3(s))
 function Base.rstrip(f, s::InlineString)
     nc = 0
     for c in Iterators.reverse(s)
@@ -543,9 +481,7 @@ function Base.rstrip(f, s::InlineString)
 end
 
 Base.rstrip(::AbstractString, ::InlineString) = throw_strip_argument_error()
-Base.rstrip(::AbstractString, ::InlineString1) = throw_strip_argument_error()
 
-Base.chomp(s::InlineString1) = chomp(String3(s))
 function Base.chomp(s::InlineString)
     i = lastindex(s)
     len = ncodeunits(s)
@@ -558,14 +494,12 @@ function Base.chomp(s::InlineString)
     end
 end
 
-Base.first(s::InlineString1, n::Integer) = first(String3(s), n)
 function Base.first(s::T, n::Integer) where {T <: InlineString}
     newlen = nextind(s, min(lastindex(s), nextind(s, 0, n))) - 1
     i = sizeof(T) - newlen
     return Base.or_int(clear_n_bytes(s, i), _oftype(typeof(s), newlen))
 end
 
-Base.last(s::InlineString1, n::Integer) = last(String3(s), n)
 function Base.last(s::T, n::Integer) where {T <: InlineString}
     nc = ncodeunits(s) + 1
     i = max(1, prevind(s, nc, n))
@@ -643,13 +577,11 @@ Base.string(a::_SmallestInlineStrings, b::_SmallestInlineStrings, c::_SmallestIn
 # Only benefit from keeping the small-ish strings as InlineStrings
 function _string(a::Ta, b::Tb) where {Ta <: SmallInlineStrings, Tb <: SmallInlineStrings}
     T = summed_type(Ta, Tb)
-    lb_a = Int(!isa(a, InlineString1)) # no "length byte" to remove if InlineString1
-    lb_b = Int(!isa(b, InlineString1))
     len_a = sizeof(a)
     len_b = sizeof(b)
     # Remove length byte (lshr), grow to new size (zext), move chars forward (shl).
-    a2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(a, 8*lb_a)), 8 * (sizeof(T) - sizeof(Ta) + lb_a))
-    b2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(b, 8*lb_b)), 8 * (sizeof(T) - sizeof(Tb) + lb_b - len_a))
+    a2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(a, 8)), 8 * (sizeof(T) - sizeof(Ta) + 1))
+    b2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(b, 8)), 8 * (sizeof(T) - sizeof(Tb) + 1 - len_a))
     lb = _oftype(T, len_a + len_b)  # new length byte
     return Base.or_int(Base.or_int(a2, b2), lb)
 end
@@ -879,7 +811,7 @@ using Base.Sort, Base.Order
 
 # And under certain thresholds, MergeSort is faster than RadixSort, even for small InlineStrings
 const MergeSortThresholds = Dict(
-    1 => 2^5,
+    2 => 2^5,
     4 => 2^7,
     8 => 2^9,
     16 => 2^23
@@ -925,7 +857,7 @@ function Base.sort!(vs::AbstractVector, lo::Int, hi::Int, ::InlineStringSortAlg,
 
     # setup
     ts = similar(vs)
-    rdx = Radix(sizeof(T) == 1 ? 8 : 11)
+    rdx = Radix(11)
     radix_size = rdx.size
     radix_mask = rdx.mask
     radix_size_pow = rdx.pow
