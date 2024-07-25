@@ -311,10 +311,10 @@ function Base.hash(x::T, h::UInt) where {T <: InlineString}
 end
 
 function Base.write(io::IO, x::T) where {T <: InlineString}
-    ref = Ref{T}(x)
+    ref = Ref{T}(_bswap(x))
     return GC.@preserve ref begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
-        Int(unsafe_write(io, ptr, reinterpret(UInt, sizeof(T))))::Int
+        Int(unsafe_write(io, ptr, reinterpret(UInt, sizeof(x))))::Int
     end
 end
 

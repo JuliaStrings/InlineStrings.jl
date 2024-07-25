@@ -570,6 +570,13 @@ end
 @test inlinestrings(["a", "b", ""]) == [String1("a"), String1("b"), String1("")]
 @test String1("") == ""
 
+@testset "write" begin
+    str = InlineString("abc")
+    iob = IOBuffer()
+    write(iob, str)
+    @test String(take!(iob)) == "abc"
+end
+
 # only test package extension on >= 1.9.0
 if VERSION >= v"1.9.0" && Sys.WORD_SIZE == 64
 include(joinpath(dirname(pathof(InlineStrings)), "../ext/tests.jl"))
