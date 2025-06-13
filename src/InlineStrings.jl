@@ -302,7 +302,7 @@ Base.:(==)(y::InlineString, x::String) = x == y
 Base.cmp(a::T, b::T) where {T <: InlineString} =
     Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
 
-function Base.hash(x::T, h::UInt) where {T<:InlineString}
+function Base.hash(x::T, h::UInt) where {T <: InlineString}
     len = ncodeunits(x)
     ref = Ref{T}(_bswap(x))
     GC.@preserve ref begin
