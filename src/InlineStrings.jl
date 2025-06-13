@@ -302,12 +302,13 @@ Base.:(==)(y::InlineString, x::String) = x == y
 Base.cmp(a::T, b::T) where {T <: InlineString} =
     Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
 
-function Base.hash(x::T, h::UInt) where {T <: InlineString}
-    h += Base.memhash_seed
+function Base.hash(x::T, h::UInt) where {T<:InlineString}
+    len = ncodeunits(x)
     ref = Ref{T}(_bswap(x))
-    return ccall(Base.memhash, UInt,
-        (Ref{T}, Csize_t, UInt32),
-        ref, sizeof(x), h % UInt32) + h
+    GC.@preserve ref begin
+        ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
+        return Base.hash_bytes(ptr, len, UInt64(h), Base.HASH_SECRET) % UInt
+    end
 end
 
 function Base.write(io::IO, x::T) where {T <: InlineString}
