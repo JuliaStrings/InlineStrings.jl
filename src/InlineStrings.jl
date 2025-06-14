@@ -302,6 +302,8 @@ Base.:(==)(y::InlineString, x::String) = x == y
 Base.cmp(a::T, b::T) where {T <: InlineString} =
     Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
 
+@static if isdefined(Base, :hash_bytes)
+
 function Base.hash(x::T, h::UInt) where {T <: InlineString}
     len = ncodeunits(x)
     ref = Ref{T}(_bswap(x))
@@ -310,6 +312,18 @@ function Base.hash(x::T, h::UInt) where {T <: InlineString}
         return Base.hash_bytes(ptr, len, UInt64(h), Base.HASH_SECRET) % UInt
     end
 end
+
+else
+
+function Base.hash(x::T, h::UInt) where {T <: InlineString}
+    h += Base.memhash_seed
+    ref = Ref{T}(_bswap(x))
+    return ccall(Base.memhash, UInt,
+        (Ref{T}, Csize_t, UInt32),
+        ref, sizeof(x), h % UInt32) + h
+end
+
+end # @static
 
 function Base.write(io::IO, x::T) where {T <: InlineString}
     ref = Ref{T}(x)
