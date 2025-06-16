@@ -570,6 +570,14 @@ end
 @test inlinestrings(["a", "b", ""]) == [String1("a"), String1("b"), String1("")]
 @test String1("") == ""
 
+@testset "C-compatibility" begin
+    for S in SUBTYPES
+        data = randstring(Core.sizeof(S) - 1)
+        str = S(data)
+        @test (@ccall strlen(str::Cstring)::Csize_t) == length(data)
+    end
+end
+
 # only test package extension on >= 1.9.0
 if VERSION >= v"1.9.0" && Sys.WORD_SIZE == 64
 include(joinpath(dirname(pathof(InlineStrings)), "../ext/tests.jl"))
