@@ -616,7 +616,7 @@ summed_type(a::Type{<:SmallInlineStrings}, b::Type{<:SmallInlineStrings}) = summ
 function Base.repeat(x::T, r::Integer) where {T <: InlineString}
     r < 0 && throw(ArgumentError("can't repeat a string $r times"))
     r == 0 && return ""
-    r == 1 && return s
+    r == 1 && return x
     n = sizeof(x)
     out = Base._string_n(n * r)
     if n == 1 # common case: repeating a single-byte string

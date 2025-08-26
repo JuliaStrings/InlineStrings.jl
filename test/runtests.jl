@@ -257,6 +257,9 @@ for S in SUBTYPES
     end
 end
 
+# repeat one-time should return the same object
+@test repeat(InlineString("abc"), 1) === InlineString("abc")
+
 # can't contain NUL when converting to Cstring
 @test_throws ArgumentError Base.cconvert(Cstring, InlineString("a\0c"))
 
