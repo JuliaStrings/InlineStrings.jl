@@ -75,6 +75,50 @@ const SmallInlineStrings = Union{String1, String3, String7, String15}
 clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
 _bswap(x::T) where {T <: InlineString} = Base.bswap_int(x)
 
+# Byte access abstraction layer
+@inline get_byte(x::T, i::Int) where {T <: InlineString} =
+    Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - i)))
+
+@inline function set_byte(x::T, i::Int, b::UInt8) where {T <: InlineString}
+    old_byte = get_byte(x, i)
+    bit_pos = 8 * (sizeof(T) - i)
+    x = Base.xor_int(x, Base.shl_int(Base.zext_int(T, old_byte), bit_pos))
+    return Base.or_int(x, Base.shl_int(Base.zext_int(T, b), bit_pos))
+end
+
+@inline get_capacity_byte(x::InlineString) = Base.trunc_int(UInt8, x)
+
+@inline function set_capacity_byte(x::T, b::UInt8) where {T <: InlineString}
+    old_capacity = get_capacity_byte(x)
+    cleared = Base.xor_int(x, Base.zext_int(T, old_capacity))
+    return Base.or_int(cleared, Base.zext_int(T, b))
+end
+
+@inline clear_suffix_bytes(x::InlineString, n::Int) = clear_n_bytes(x, n)
+
+@inline function clear_prefix_bytes(x::T, n::Int) where {T <: InlineString}
+    capacity = get_capacity_byte(x)
+    without_capacity = Base.xor_int(x, Base.zext_int(T, capacity))
+    shifted = Base.shl_int(without_capacity, 8 * n)
+    return Base.or_int(shifted, Base.zext_int(T, capacity))
+end
+
+@inline create_with_length(::Type{T}, length::Int) where {T <: InlineString} =
+    Base.zext_int(T, trailing_byte(T, length))
+
+@inline get_string_data(x::InlineString) = Base.lshr_int(x, 8)
+
+@inline function resize_string_data(x::S, ::Type{T}) where {S <: InlineString, T <: InlineString}
+    sizeof(T) == sizeof(S) && return x
+    if sizeof(T) > sizeof(S)
+        data = get_string_data(x)
+        return Base.shl_int(Base.zext_int(T, data), 8 * (sizeof(T) - sizeof(S) + 1))
+    else
+        shift = 8 * (sizeof(S) - sizeof(T))
+        return Base.trunc_int(T, Base.lshr_int(x, shift))
+    end
+end
+
 const InlineStringTypes = Union{InlineString1,
                             InlineString3,
                             InlineString7,
@@ -115,12 +159,12 @@ Base.widen(::Type{InlineString255}) = String
 
 trailing_byte(::Type{T}, len) where {T <: InlineString} = UInt8(sizeof(T) - len - 1)
 
-Base.ncodeunits(x::InlineString) = Core.sizeof(x) - Int(Base.trunc_int(UInt8, x)) - 1
+Base.ncodeunits(x::InlineString) = Core.sizeof(x) - Int(get_capacity_byte(x)) - 1
 Base.codeunit(::InlineString) = UInt8
 
 Base.@propagate_inbounds function Base.codeunit(x::T, i::Int) where {T <: InlineString}
     @boundscheck checkbounds(Bool, x, i) || throw(BoundsError(x, i))
-    return Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - i)))
+    return get_byte(x, i)
 end
 
 function Base.String(x::T) where {T <: InlineString}
@@ -175,24 +219,25 @@ function Base.show(io::IO, s::InlineString)  # So `repr` shows how to recreate `
     end
 end
 
-# add a codeunit to end of string method
 function addcodeunit(x::T, b::UInt8) where {T <: InlineString}
     len = Base.trunc_int(UInt8, ncodeunits(x))
     sz = Base.trunc_int(UInt8, sizeof(T))
-    shf = Base.zext_int(Int16, max(0x01, sz - len - 0x01)) << 3
-    x = Base.or_int(x, Base.shl_int(Base.zext_int(T, b), shf))
-    return Base.sub_int(x, Base.zext_int(T, 0x01)), (len + 0x01) >= sz
+    x = set_byte(x, len + 1, b)
+    x = set_capacity_byte(x, get_capacity_byte(x) - 0x01)
+    return x, (len + 0x01) >= sz
 end
 
 for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :InlineString31, :InlineString63, :InlineString127, :InlineString255)
-    @eval $T() = Base.zext_int($T, trailing_byte($T, 0))
+    @eval $T() = create_with_length($T, 0)
     @eval function $T(x::AbstractString)
         if typeof(x) === String && sizeof($T) <= sizeof(UInt)
             len = sizeof(x)
             len < sizeof($T) || stringtoolong($T, len)
             y = GC.@preserve x unsafe_load(convert(Ptr{$T}, pointer(x)))
             sz = 8 * (sizeof($T) - len)
-            return Base.or_int(Base.shl_int(Base.lshr_int(_bswap(y), sz), sz), Base.zext_int($T, trailing_byte($T, len)))
+            # Clear unused bytes and set capacity byte
+            cleared = Base.shl_int(Base.lshr_int(_bswap(y), sz), sz)
+            return set_capacity_byte(cleared, trailing_byte($T, len))
         else
             len = ncodeunits(x)
             len < sizeof($T) || stringtoolong($T, len)
@@ -221,7 +266,9 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
         else
             y = GC.@preserve buf unsafe_load(convert(Ptr{$T}, pointer(buf, pos)))
             sz = 8 * (sizeof($T) - len)
-            return Base.or_int(Base.shl_int(Base.lshr_int(_bswap(y), sz), sz), Base.zext_int($T, trailing_byte($T, len)))
+            # Clear unused bytes and set capacity byte
+            cleared = Base.shl_int(Base.lshr_int(_bswap(y), sz), sz)
+            return set_capacity_byte(cleared, trailing_byte($T, len))
         end
     end
 
@@ -254,12 +301,12 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
             # trying to compress
             len = sizeof(x)
             len > (sizeof($T) - 1) && stringtoolong($T, len)
-            y = Base.trunc_int($T, Base.lshr_int(x, 8 * (sizeof(S) - sizeof($T))))
-            return Base.add_int(y, Base.zext_int($T, trailing_byte($T, len)))
+            y = resize_string_data(x, $T)
+            return set_capacity_byte(y, trailing_byte($T, len))
         else
             # promoting smaller InlineString to larger
-            y = Base.shl_int(Base.zext_int($T, Base.lshr_int(x, 8)), 8 * (sizeof($T) - sizeof(S) + 1))
-            return Base.add_int(y, Base.zext_int($T, trailing_byte($T, sizeof(x))))
+            y = resize_string_data(x, $T)
+            return set_capacity_byte(y, trailing_byte($T, sizeof(x)))
         end
     end
 end
@@ -388,8 +435,9 @@ end
 @inline function _subinlinestring(s::T, i::Integer, j::Integer) where {T <: InlineString}
     new_n = max(0, nextind(s, j) - i)                        # new ncodeunits
     jx = nextind(s, j) - 1                                   # last codeunit to keep
-    s = clear_n_bytes(s, sizeof(typeof(s)) - jx)
-    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), trailing_byte(T, new_n)))
+    s = clear_suffix_bytes(s, sizeof(typeof(s)) - jx)
+    s = clear_prefix_bytes(s, (i - 1))
+    return set_capacity_byte(s, trailing_byte(T, new_n))
 end
 
 Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, Int(first(r)):Int(last(r)))
@@ -435,9 +483,8 @@ end
     new_n = n - nprefix
     # call `nextind` for each "character" (not codeunit) in prefix
     i = min(n + 1, max(nextind(s, firstindex(s), lprefix), 1))
-    s = clear_n_bytes(s, 1)           # clear out the length bits
-    s = Base.shl_int(s, (i - 1) * 8)  # clear out prefix
-    return Base.or_int(s, _oftype(typeof(s), trailing_byte(typeof(s), new_n)))
+    s = clear_prefix_bytes(s, (i - 1))
+    return set_capacity_byte(s, trailing_byte(typeof(s), new_n))
 end
 
 throw_strip_argument_error() =
@@ -481,8 +528,8 @@ _chopsuffix(s::InlineString, suffix::AbstractString) = _chopsuffix(s, ncodeunits
 @inline function _chopsuffix(s::InlineString, nsuffix::Int)
     n = ncodeunits(s)
     new_n = n - nsuffix
-    s = clear_n_bytes(s, sizeof(typeof(s)) - new_n)
-    return Base.or_int(s, _oftype(typeof(s), trailing_byte(typeof(s), new_n)))
+    s = clear_suffix_bytes(s, sizeof(typeof(s)) - new_n)
+    return set_capacity_byte(s, trailing_byte(typeof(s), new_n))
 end
 
 function Base.rstrip(f, s::InlineString)
@@ -505,16 +552,19 @@ function Base.chomp(s::InlineString)
     if i < 1 || codeunit(s, i) != 0x0a
         return s
     elseif i < 2 || codeunit(s, i - 1) != 0x0d
-        return Base.or_int(clear_n_bytes(s, sizeof(typeof(s)) - i + 1), _oftype(typeof(s), trailing_byte(typeof(s), len - 1)))
+        s = clear_suffix_bytes(s, sizeof(typeof(s)) - i + 1)
+        return set_capacity_byte(s, trailing_byte(typeof(s), len - 1))
     else
-        return Base.or_int(clear_n_bytes(s, sizeof(typeof(s)) - i + 2), _oftype(typeof(s), trailing_byte(typeof(s), len - 2)))
+        s = clear_suffix_bytes(s, sizeof(typeof(s)) - i + 2)
+        return set_capacity_byte(s, trailing_byte(typeof(s), len - 2))
     end
 end
 
 function Base.first(s::T, n::Integer) where {T <: InlineString}
     newlen = nextind(s, min(lastindex(s), nextind(s, 0, n))) - 1
     i = sizeof(T) - newlen
-    return Base.or_int(clear_n_bytes(s, i), _oftype(typeof(s), trailing_byte(T, newlen)))
+    s = clear_suffix_bytes(s, i)
+    return set_capacity_byte(s, trailing_byte(T, newlen))
 end
 
 function Base.last(s::T, n::Integer) where {T <: InlineString}
@@ -522,16 +572,15 @@ function Base.last(s::T, n::Integer) where {T <: InlineString}
     i = max(1, prevind(s, nc, n))
     i == 1 && return s
     newlen = nc - i
-    # clear out the length bits before shifting left
-    s = clear_n_bytes(s, 1)
-    return Base.or_int(Base.shl_int(s, (i - 1) * 8), _oftype(typeof(s), trailing_byte(T, newlen)))
+    s = clear_prefix_bytes(s, (i - 1))
+    return set_capacity_byte(s, trailing_byte(T, newlen))
 end
 
 Base.reverse(x::String1) = x
 function Base.reverse(s::T) where {T <: InlineString}
     nc = ncodeunits(s)
     if isascii(s)
-        len = Base.zext_int(T, Base.trunc_int(UInt8, s))
+        len = Base.zext_int(T, get_capacity_byte(s))
         x = Base.or_int(Base.shl_int(_bswap(s), 8 * (sizeof(T) - nc)), len)
         return x
     end
