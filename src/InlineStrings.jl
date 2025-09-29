@@ -71,52 +71,60 @@ end
 
 const SmallInlineStrings = Union{String1, String3, String7, String15}
 
-# used to zero out n lower bytes of an inline string
-clear_n_bytes(s, n) = Base.shl_int(Base.lshr_int(s, 8 * n), 8 * n)
-_bswap(x::T) where {T <: InlineString} = Base.bswap_int(x)
 
-# Byte access abstraction layer
 @inline get_byte(x::T, i::Int) where {T <: InlineString} =
-    Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - i)))
+    Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (i - 1)))
 
 @inline function set_byte(x::T, i::Int, b::UInt8) where {T <: InlineString}
-    old_byte = get_byte(x, i)
-    bit_pos = 8 * (sizeof(T) - i)
-    x = Base.xor_int(x, Base.shl_int(Base.zext_int(T, old_byte), bit_pos))
-    return Base.or_int(x, Base.shl_int(Base.zext_int(T, b), bit_pos))
+    bit_pos = 8 * (i - 1)
+    mask = Base.not_int(Base.shl_int(Base.zext_int(T, 0xff), bit_pos))
+    cleared = Base.and_int(x, mask)
+    return Base.or_int(cleared, Base.shl_int(Base.zext_int(T, b), bit_pos))
 end
 
-@inline get_capacity_byte(x::InlineString) = Base.trunc_int(UInt8, x)
+@inline get_capacity_byte(x::T) where {T <: InlineString} =
+    Base.trunc_int(UInt8, Base.lshr_int(x, 8 * (sizeof(T) - 1)))
 
 @inline function set_capacity_byte(x::T, b::UInt8) where {T <: InlineString}
-    old_capacity = get_capacity_byte(x)
-    cleared = Base.xor_int(x, Base.zext_int(T, old_capacity))
-    return Base.or_int(cleared, Base.zext_int(T, b))
+    bit_pos = 8 * (sizeof(T) - 1)
+    mask = Base.not_int(Base.shl_int(Base.zext_int(T, 0xff), bit_pos))
+    cleared = Base.and_int(x, mask)
+    return Base.or_int(cleared, Base.shl_int(Base.zext_int(T, b), bit_pos))
 end
 
-@inline clear_suffix_bytes(x::InlineString, n::Int) = clear_n_bytes(x, n)
+@inline function clear_suffix_bytes(x::T, n::Int) where {T <: InlineString}
+    n == 0 && return x
+    n >= sizeof(T) && return create_with_length(T, 0)
+    result = create_with_length(T, 0)
+    keep_bytes = sizeof(T) - n
+    for i in 1:keep_bytes
+        result = set_byte(result, i, get_byte(x, i))
+    end
+    return result
+end
 
 @inline function clear_prefix_bytes(x::T, n::Int) where {T <: InlineString}
+    n == 0 && return x
     capacity = get_capacity_byte(x)
-    without_capacity = Base.xor_int(x, Base.zext_int(T, capacity))
-    shifted = Base.shl_int(without_capacity, 8 * n)
-    return Base.or_int(shifted, Base.zext_int(T, capacity))
+    data_only = Base.and_int(x, Base.not_int(Base.shl_int(Base.zext_int(T, 0xff), 8 * (sizeof(T) - 1))))
+    shifted_data = Base.lshr_int(data_only, 8 * n)
+    return set_capacity_byte(shifted_data, capacity)
 end
 
-@inline create_with_length(::Type{T}, length::Int) where {T <: InlineString} =
-    Base.zext_int(T, trailing_byte(T, length))
+@inline function create_with_length(::Type{T}, length::Int) where {T <: InlineString}
+    capacity_byte = trailing_byte(T, length)
+    return Base.shl_int(Base.zext_int(T, capacity_byte), 8 * (sizeof(T) - 1))
+end
 
-@inline get_string_data(x::InlineString) = Base.lshr_int(x, 8)
+@inline function get_string_data(x::T) where {T <: InlineString}
+    capacity_mask = Base.shl_int(Base.zext_int(T, 0xff), 8 * (sizeof(T) - 1))
+    return Base.and_int(x, Base.not_int(capacity_mask))
+end
 
 @inline function resize_string_data(x::S, ::Type{T}) where {S <: InlineString, T <: InlineString}
     sizeof(T) == sizeof(S) && return x
-    if sizeof(T) > sizeof(S)
-        data = get_string_data(x)
-        return Base.shl_int(Base.zext_int(T, data), 8 * (sizeof(T) - sizeof(S) + 1))
-    else
-        shift = 8 * (sizeof(S) - sizeof(T))
-        return Base.trunc_int(T, Base.lshr_int(x, shift))
-    end
+    data = get_string_data(x)
+    return sizeof(T) > sizeof(S) ? Base.zext_int(T, data) : Base.trunc_int(T, data)
 end
 
 const InlineStringTypes = Union{InlineString1,
@@ -170,7 +178,7 @@ end
 function Base.String(x::T) where {T <: InlineString}
     len = ncodeunits(x)
     out = Base._string_n(len)
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     GC.@preserve ref out begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         unsafe_copyto!(pointer(out), ptr, len)
@@ -179,17 +187,17 @@ function Base.String(x::T) where {T <: InlineString}
 end
 
 function Base.Symbol(x::T) where {T <: InlineString}
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     return ccall(:jl_symbol_n, Ref{Symbol},
         (Ref{T}, Int), ref, sizeof(x))
 end
 
 Base.cconvert(::Type{Ptr{UInt8}}, x::T) where {T <: InlineString} =
-    Ref{T}(_bswap(x))
+    Ref{T}(x)
 Base.cconvert(::Type{Ptr{Int8}}, x::T) where {T <: InlineString} =
-    Ref{T}(_bswap(x))
+    Ref{T}(x)
 function Base.cconvert(::Type{Cstring}, x::T) where {T <: InlineString}
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     Base.containsnul(Ptr{Int8}(pointer_from_objref(ref)), sizeof(x)) &&
         throw(ArgumentError("embedded NULs are not allowed in C strings: $x"))
     return ref
@@ -234,9 +242,8 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
             len = sizeof(x)
             len < sizeof($T) || stringtoolong($T, len)
             y = GC.@preserve x unsafe_load(convert(Ptr{$T}, pointer(x)))
-            sz = 8 * (sizeof($T) - len)
             # Clear unused bytes and set capacity byte
-            cleared = Base.shl_int(Base.lshr_int(_bswap(y), sz), sz)
+            cleared = clear_suffix_bytes(y, sizeof($T) - len)
             return set_capacity_byte(cleared, trailing_byte($T, len))
         else
             len = ncodeunits(x)
@@ -265,9 +272,8 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
             return y
         else
             y = GC.@preserve buf unsafe_load(convert(Ptr{$T}, pointer(buf, pos)))
-            sz = 8 * (sizeof($T) - len)
             # Clear unused bytes and set capacity byte
-            cleared = Base.shl_int(Base.lshr_int(_bswap(y), sz), sz)
+            cleared = clear_suffix_bytes(y, sizeof($T) - len)
             return set_capacity_byte(cleared, trailing_byte($T, len))
         end
     end
@@ -339,7 +345,7 @@ end
 Base.:(==)(x::T, y::T) where {T <: InlineString} = Base.eq_int(x, y)
 function Base.:(==)(x::String, y::T) where {T <: InlineString}
     sizeof(x) == sizeof(y) || return false
-    ref = Ref{T}(_bswap(y))
+    ref = Ref{T}(y)
     GC.@preserve x begin
         return ccall(:memcmp, Cint, (Ptr{UInt8}, Ref{T}, Csize_t),
                 pointer(x), ref, sizeof(x)) == 0
@@ -347,14 +353,29 @@ function Base.:(==)(x::String, y::T) where {T <: InlineString}
 end
 Base.:(==)(y::InlineString, x::String) = x == y
 
-Base.cmp(a::T, b::T) where {T <: InlineString} =
-    Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
+function Base.cmp(a::T, b::T) where {T <: InlineString}
+    Base.eq_int(a, b) && return 0
+
+    len_a = ncodeunits(a)
+    len_b = ncodeunits(b)
+    min_len = min(len_a, len_b)
+
+    for i in 1:min_len
+        byte_a = get_byte(a, i)
+        byte_b = get_byte(b, i)
+        if byte_a != byte_b
+            return byte_a < byte_b ? -1 : 1
+        end
+    end
+
+    return len_a < len_b ? -1 : (len_a > len_b ? 1 : 0)
+end
 
 @static if isdefined(Base, :hash_bytes)
 
 function Base.hash(x::T, h::UInt) where {T <: InlineString}
     len = ncodeunits(x)
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     GC.@preserve ref begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         return Base.hash_bytes(ptr, len, UInt64(h), Base.HASH_SECRET) % UInt
@@ -365,7 +386,7 @@ else
 
 function Base.hash(x::T, h::UInt) where {T <: InlineString}
     h += Base.memhash_seed
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     return ccall(Base.memhash, UInt,
         (Ref{T}, Csize_t, UInt32),
         ref, sizeof(x), h % UInt32) + h
@@ -395,7 +416,7 @@ function Base.read(s::IO, ::Type{T}) where {T <: InlineString}
 end
 
 function Base.print(io::IO, x::T) where {T <: InlineString}
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     return GC.@preserve ref begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         unsafe_write(io, ptr, sizeof(x))
@@ -405,14 +426,9 @@ end
 
 function Base.isascii(x::T) where {T <: InlineString}
     len = ncodeunits(x)
-    x = Base.lshr_int(x, 8 * (sizeof(T) - len))
-    for _ = 1:(len >> 2)
-        y = Base.trunc_int(UInt32, x)
-        (y & 0xff000000) >= 0x80000000 && return false
-        (y & 0x00ff0000) >= 0x00800000 && return false
-        (y & 0x0000ff00) >= 0x00008000 && return false
-        (y & 0x000000ff) >= 0x00000080 && return false
-        x = Base.lshr_int(x, 32)
+    for i in 1:len
+        byte_val = get_byte(x, i)
+        byte_val >= 0x80 && return false
     end
     return true
 end
@@ -579,31 +595,34 @@ end
 Base.reverse(x::String1) = x
 function Base.reverse(s::T) where {T <: InlineString}
     nc = ncodeunits(s)
+    nc <= 1 && return s
+
+    result = create_with_length(T, nc)
+
     if isascii(s)
-        len = Base.zext_int(T, get_capacity_byte(s))
-        x = Base.or_int(Base.shl_int(_bswap(s), 8 * (sizeof(T) - nc)), len)
-        return x
+        for i in 1:nc
+            result = set_byte(result, nc - i + 1, get_byte(s, i))
+        end
+    else
+        dest_offs = nc + 1
+        src_pos = 1
+
+        for c in s
+            char_len = ncodeunits(c)
+            dest_offs -= char_len
+            for i in 1:char_len
+                result = set_byte(result, dest_offs + i - 1, get_byte(s, src_pos + i - 1))
+            end
+            src_pos += char_len
+        end
     end
-    x = Base.zext_int(T, Base.trunc_int(UInt8, s))
-    i = 1
-    while i <= nc
-        j = nextind(s, i)
-        _x = Base.lshr_int(s, 8 * (sizeof(T) - (j - 1)))
-        n = j - i
-        _x = Base.and_int(_x, n == 1 ? Base.zext_int(T, 0xff) :
-            n == 2 ? Base.zext_int(T, 0xffff) :
-            n == 3 ? Base.zext_int(T, 0xffffff) :
-                     Base.zext_int(T, 0xffffffff))
-        _x = Base.shl_int(_x, 8 * (sizeof(T) - (nc - (i - 1))))
-        x = Base.or_int(x, _x)
-        i = j
-    end
-    return x
+
+    return result
 end
 
 @inline function Base.__unsafe_string!(out, x::T, offs::Integer) where {T <: InlineString}
     n = sizeof(x)
-    ref = Ref{T}(_bswap(x))
+    ref = Ref{T}(x)
     GC.@preserve ref out begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         unsafe_copyto!(pointer(out, offs), ptr, n)
@@ -645,11 +664,24 @@ function _string(a::Ta, b::Tb) where {Ta <: SmallInlineStrings, Tb <: SmallInlin
     T = summed_type(Ta, Tb)
     len_a = sizeof(a)
     len_b = sizeof(b)
-    # Remove length byte (lshr), grow to new size (zext), move chars forward (shl).
-    a2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(a, 8)), 8 * (sizeof(T) - sizeof(Ta) + 1))
-    b2 = Base.shl_int(Base.zext_int(T, Base.lshr_int(b, 8)), 8 * (sizeof(T) - sizeof(Tb) + 1 - len_a))
-    lb = _oftype(T, trailing_byte(T, len_a + len_b))  # new length byte
-    return Base.or_int(Base.or_int(a2, b2), lb)
+    total_len = len_a + len_b
+
+    # Create result with correct capacity
+    result = create_with_length(T, total_len)
+
+    # Copy bytes from first string
+    for i in 1:len_a
+        byte_val = get_byte(a, i)
+        result = set_byte(result, i, byte_val)
+    end
+
+    # Copy bytes from second string
+    for i in 1:len_b
+        byte_val = get_byte(b, i)
+        result = set_byte(result, len_a + i, byte_val)
+    end
+
+    return result
 end
 
 summed_type(::Type{InlineString1}, ::Type{InlineString1}) = InlineString3
@@ -675,7 +707,7 @@ function Base.repeat(x::T, r::Integer) where {T <: InlineString}
         ccall(:memset, Ptr{Cvoid}, (Ptr{UInt8}, Cint, Csize_t), out, b, r)
     else
         for i = 0:r-1
-            ref = Ref{T}(_bswap(x))
+            ref = Ref{T}(x)
             GC.@preserve ref out begin
                 ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
                 unsafe_copyto!(pointer(out, i * n + 1), ptr, n)
@@ -691,7 +723,7 @@ Base.startswith(a::InlineString, b::InlineString) = invoke(startswith, Tuple{Abs
 function Base.startswith(a::T, b::Union{String, SubString{String}}) where {T <: InlineString}
     cub = ncodeunits(b)
     ncodeunits(a) < cub && return false
-    ref = Ref{T}(_bswap(a))
+    ref = Ref{T}(a)
     return GC.@preserve ref begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         if Base._memcmp(ptr, b, sizeof(b)) == 0
@@ -708,7 +740,7 @@ function Base.endswith(a::T, b::Union{String, SubString{String}}) where {T <: In
     cub = ncodeunits(b)
     astart = ncodeunits(a) - ncodeunits(b) + 1
     astart < 1 && return false
-    ref = Ref{T}(_bswap(a))
+    ref = Ref{T}(a)
     return GC.@preserve ref begin
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         if Base._memcmp(ptr + (astart - 1), b, sizeof(b)) == 0
@@ -902,6 +934,7 @@ sortvalue(o::Perm, i::Int) = sortvalue(o.order, o.data[i])
 sortvalue(o::Lt,   x     ) = error("sortvalue does not work with general Lt Orderings")
 sortvalue(rev::ReverseOrdering, x) = Base.not_int(sortvalue(rev.fwd, x))
 sortvalue(::Base.ForwardOrdering, x) = x
+sortvalue(::Base.ForwardOrdering, x::InlineString) = Base.bswap_int(get_string_data(x))
 
 _oftype(::Type{T}, x::S) where {T, S} = sizeof(T) == sizeof(S) ? Base.bitcast(T, x) : sizeof(T) > sizeof(S) ? Base.zext_int(T, x) : Base.trunc_int(T, x)
 
