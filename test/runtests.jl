@@ -350,9 +350,12 @@ const INLINES = map(InlineString, STRINGS)
         y != "" && @test last(x, sizeof(x) - 1) == last(y, sizeof(y) - 1)
         @test last(x, sizeof(x) + 1) == last(y, sizeof(y) + 1)
         # https://github.com/JuliaDatabases/SQLite.jl/issues/306
-        @test unsafe_string(Base.unsafe_convert(Ptr{UInt8}, Base.cconvert(Ptr{UInt8}, x))) == y
-        @test unsafe_string(Base.unsafe_convert(Ptr{Int8}, Base.cconvert(Ptr{Int8}, x))) == y
-        @test unsafe_string(Base.unsafe_convert(Cstring, Base.cconvert(Cstring, x))) == y
+        ref_uint8 = Base.cconvert(Ptr{UInt8}, x)
+        @test GC.@preserve ref_uint8 unsafe_string(Base.unsafe_convert(Ptr{UInt8}, ref_uint8)) == y
+        ref_int8 = Base.cconvert(Ptr{Int8}, x)
+        @test GC.@preserve ref_int8 unsafe_string(Base.unsafe_convert(Ptr{Int8}, ref_int8)) == y
+        ref_cstring = Base.cconvert(Cstring, x)
+        @test GC.@preserve ref_cstring unsafe_string(Base.unsafe_convert(Cstring, ref_cstring)) == y
     end
 end
 
