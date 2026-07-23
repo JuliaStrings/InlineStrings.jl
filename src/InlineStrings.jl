@@ -186,7 +186,9 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
     @eval $T() = Base.zext_int($T, 0x00)
 
     @eval function $T(x::AbstractString)
-        if typeof(x) === String && sizeof($T) <= sizeof(UInt)
+        if codeunit(x) !== UInt8
+            return $T(String(x))
+        elseif typeof(x) === String && sizeof($T) <= sizeof(UInt)
             len = sizeof(x)
             len < sizeof($T) || stringtoolong($T, len)
             y = GC.@preserve x unsafe_load(convert(Ptr{$T}, pointer(x)))
@@ -204,10 +206,12 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
     end
 
     @eval function $T(buf::AbstractVector{UInt8}, pos=1, len=length(buf))
-        blen = length(buf)
-        blen < len && buftoosmall(len)
+        len < 0 && invalidlength(len)
         len < sizeof($T) || stringtoolong($T, len)
-        if (blen - pos + 1) < sizeof($T)
+        if len > 0 && (!checkbounds(Bool, buf, pos) || (lastindex(buf) - pos + 1) < len)
+            buftoosmall(len)
+        end
+        if (lastindex(buf) - pos + 1) < sizeof($T)
             # if our buffer isn't long enough to hold a full $T,
             # then we can't do our unsafe_load trick below because we'd be
             # unsafe_load-ing memory from beyond the end of buf
@@ -237,6 +241,7 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
                 i += 1
             end
         else
+            len < 0 && invalidlength(len)
             len < sizeof($T) || stringtoolong($T, len)
             for i = 1:len
                 @inbounds y, _ = addcodeunit(y, unsafe_load(ptr, i))
@@ -265,9 +270,11 @@ end
 
 @noinline nullptr(T) = throw(ArgumentError("cannot convert NULL to $T"))
 @noinline buftoosmall(n) = throw(ArgumentError("input buffer too short for requested length: $n"))
+@noinline invalidlength(n) = throw(ArgumentError("length must be nonnegative: $n"))
 @noinline stringtoolong(T, n) = throw(ArgumentError("string too large ($n) to convert to $T"))
 
 function InlineStringType(n::Integer)
+    n < 0 && invalidlength(n)
     n > 255 && stringtoolong(InlineString, n)
     return n < 2   ? InlineString1   : n < 4  ? InlineString3  :
            n < 8   ? InlineString7   : n < 16 ? InlineString15 :
@@ -276,7 +283,10 @@ function InlineStringType(n::Integer)
 end
 
 InlineString(x::InlineString) = x
-InlineString(x::AbstractString)::InlineStringTypes = (InlineStringType(ncodeunits(x)))(x)
+function InlineString(x::AbstractString)::InlineStringTypes
+    codeunit(x) === UInt8 || return InlineString(String(x))
+    return (InlineStringType(ncodeunits(x)))(x)
+end
 
 """
     inline"string"
@@ -301,6 +311,18 @@ Base.:(==)(y::InlineString, x::String) = x == y
 
 Base.cmp(a::T, b::T) where {T <: InlineString} =
     Base.eq_int(a, b) ? 0 : Base.ult_int(a, b) ? -1 : 1
+@inline function _cmp(a::AbstractString, b::AbstractString)
+    al, bl = ncodeunits(a), ncodeunits(b)
+    for i = 1:min(al, bl)
+        ac = @inbounds codeunit(a, i)
+        bc = @inbounds codeunit(b, i)
+        ac == bc || return ifelse(ac < bc, -1, 1)
+    end
+    return cmp(al, bl)
+end
+Base.cmp(a::InlineString, b::InlineString) = _cmp(a, b)
+Base.cmp(a::InlineString, b::Union{String, SubString{String}}) = _cmp(a, b)
+Base.cmp(a::Union{String, SubString{String}}, b::InlineString) = -_cmp(b, a)
 
 @static if isdefined(Base, :hash_bytes)
 
@@ -331,6 +353,10 @@ function Base.write(io::IO, x::T) where {T <: InlineString}
         ptr = convert(Ptr{UInt8}, Base.unsafe_convert(Ptr{T}, ref))
         Int(unsafe_write(io, ptr, reinterpret(UInt, sizeof(T))))::Int
     end
+end
+@static if isdefined(Base, :AnnotatedIOBuffer)
+    Base.write(io::Base.AnnotatedIOBuffer, x::InlineString) =
+        invoke(write, Tuple{Base.AnnotatedIOBuffer, AbstractString}, io, x)
 end
 
 # without this method the fallback will try to write more than the codeunits
@@ -365,6 +391,10 @@ function Base.isascii(x::T) where {T <: InlineString}
         (y & 0x0000ff00) >= 0x00008000 && return false
         (y & 0x000000ff) >= 0x00000080 && return false
         x = Base.lshr_int(x, 32)
+    end
+    for _ = 1:(len & 3)
+        Base.trunc_int(UInt8, x) >= 0x80 && return false
+        x = Base.lshr_int(x, 8)
     end
     return true
 end
@@ -533,18 +563,13 @@ function Base.reverse(s::T) where {T <: InlineString}
         x = Base.or_int(Base.shl_int(_bswap(s), 8 * (sizeof(T) - nc)), len)
         return x
     end
-    x = Base.zext_int(T, Base.trunc_int(UInt8, s))
-    i = 1
-    while i <= nc
-        j = nextind(s, i)
-        _x = Base.lshr_int(s, 8 * (sizeof(T) - (j - 1)))
-        n = j - i
-        _x = Base.and_int(_x, n == 1 ? Base.zext_int(T, 0xff) :
-            n == 2 ? Base.zext_int(T, 0xffff) :
-            n == 3 ? Base.zext_int(T, 0xffffff) :
-                     Base.zext_int(T, 0xffffffff))
-        _x = Base.shl_int(_x, 8 * (sizeof(T) - (nc - (i - 1))))
-        x = Base.or_int(x, _x)
+    x = T()
+    i = nc + 1
+    while i > 1
+        j = prevind(s, i)
+        for k = j:(i - 1)
+            @inbounds x, _ = addcodeunit(x, codeunit(s, k))
+        end
         i = j
     end
     return x
@@ -673,10 +698,8 @@ Base.findnext(r::Regex, s::InlineString, i::Integer) = findnext(r, String(s), i)
 
 # the rest of these methods are copy/pasted from Base strings/string.jl file
 # for efficiency
-Base.@propagate_inbounds function Base.isvalid(x::InlineString, i::Int)
-    @boundscheck checkbounds(Bool, x, i) || throw(BoundsError(x, i))
-    return @inbounds thisind(x, i) == i
-end
+Base.isvalid(x::InlineString, i::Int) =
+    checkbounds(Bool, x, i) && (@inbounds thisind(x, i) == i)
 
 Base.@propagate_inbounds function Base.thisind(s::InlineString, i::Int)
     i == 0 && return 0
@@ -836,7 +859,7 @@ struct InlineStringSortAlg <: Algorithm end
 const InlineStringSort = InlineStringSortAlg()
 
 # Only small-ish InlineStrings benefit from RadixSort algorithm
-Base.Sort.defalg(::AbstractArray{<:Union{SmallInlineStrings, Missing}}) = InlineStringSort
+Base.Sort.defalg(::AbstractArray{<:SmallInlineStrings}) = InlineStringSort
 
 struct Radix
     size::Int
@@ -1014,9 +1037,11 @@ function _inlinestrings(itr, st, ::Type{eT}, IS, res, i) where {eT}
     return res
 end
 
-Base.Broadcast.broadcasted(::Type{InlineString}, A::AbstractArray) = inlinestrings(A)
-Base.map(::Type{InlineString}, A::AbstractArray) = inlinestrings(A)
-Base.collect(::Type{InlineString}, A::AbstractArray) = inlinestrings(A)
+_inlinestrings_array(A::AbstractArray) = reshape(inlinestrings(A), size(A))
+
+Base.Broadcast.broadcasted(::Type{InlineString}, A::AbstractArray) = _inlinestrings_array(A)
+Base.map(::Type{InlineString}, A::AbstractArray) = _inlinestrings_array(A)
+Base.collect(::Type{InlineString}, A::AbstractArray) = _inlinestrings_array(A)
 
 if !isdefined(Base, :get_extension)
     include("../ext/ParsersExt.jl")

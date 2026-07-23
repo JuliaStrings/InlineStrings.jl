@@ -12,6 +12,14 @@ const SUBTYPES = (
     InlineString255,
 )
 
+struct UTF16TestString <: AbstractString
+    data::Vector{UInt16}
+end
+Base.codeunit(::UTF16TestString) = UInt16
+Base.ncodeunits(s::UTF16TestString) = length(s.data)
+Base.codeunit(s::UTF16TestString, i::Integer) = s.data[i]
+Base.String(s::UTF16TestString) = transcode(String, s.data)
+
 @testset "InlineString basics" begin
 
 y = "abcdef"
@@ -55,6 +63,9 @@ x = InlineString7(buf)
 @test x == "hey"
 @test typeof(x) == InlineString7
 @test_throws ArgumentError InlineString7(b"abcdefgh")
+@test_throws ArgumentError InlineString7(buf, 3, 2)
+@test_throws ArgumentError InlineString7(buf, 0, 1)
+@test_throws ArgumentError InlineString7(buf, 1, -1)
 
 buf = Vector{UInt8}("x")
 x = InlineString1(buf, 1, 1)
@@ -67,6 +78,11 @@ x = InlineString1(buf)
 
 # https://github.com/JuliaData/WeakRefStrings.jl/issues/88
 @test InlineString(String1("a")) === String1("a")
+
+utf16 = UTF16TestString(transcode(UInt16, "éβ"))
+@test InlineString(utf16) === String7("éβ")
+@test String7(utf16) === String7("éβ")
+@test_throws ArgumentError String3(utf16)
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/2
 @test eltype(string.(AbstractString[])) == AbstractString
@@ -86,6 +102,9 @@ ptrstr3 = UInt8['h', 'e', 'y', '1', 0x00]
 @test_throws ArgumentError String3(pointer(ptrstr3))
 @test_throws ArgumentError String3(pointer(ptrstr3), 4)
 @test String3(pointer(ptrstr3), 3) === String3("hey")
+@test_throws ArgumentError String3(pointer(ptrstr3), -1)
+
+@test_throws ArgumentError InlineStringType(-1)
 
 # https://github.com/JuliaStrings/InlineStrings.jl/issues/32
 abc = InlineString3("abc")
@@ -357,6 +376,33 @@ const INLINES = map(InlineString, STRINGS)
         ref_cstring = Base.cconvert(Cstring, x)
         @test GC.@preserve ref_cstring unsafe_string(Base.unsafe_convert(Cstring, ref_cstring)) == y
     end
+
+    for y in ("é", "∀", "aé", "éa")
+        x = InlineString(y)
+        @test !isascii(x)
+        @test reverse(x) == reverse(y)
+    end
+    invalid = String(UInt8[0xc0, 0x80])
+    @test codeunits(reverse(InlineString(invalid))) == codeunits(reverse(invalid))
+
+    if isdefined(Base, :AnnotatedIOBuffer)
+        x = InlineString("abc")
+        @test write(Base.AnnotatedIOBuffer(), x) == sizeof(typeof(x))
+    end
+
+    a = String(UInt8[0xf6, 0xc8])
+    b = String(UInt8[0xf6, 0xb4])
+    for x in (a, InlineString(a), InlineString7(a))
+        for y in (b, InlineString(b), InlineString7(b))
+            @test cmp(x, y) == cmp(a, b) == 1
+            @test !isless(x, y)
+        end
+    end
+
+    x = InlineString("é")
+    for i in (-1, 0, ncodeunits(x) + 1, ncodeunits(x) + 2)
+        @test isvalid(x, i) == isvalid(String(x), i) == false
+    end
 end
 
 @testset "`string` / `*`" begin
@@ -497,6 +543,12 @@ end
     x = [missing, String1("b"), String1("a")]
     sort!(x)
     @test isequal(x, ["a", "b", missing])
+
+    for T in (String1, String3, String7)
+        strings = [randstring(rand(0:(sizeof(T) - 1))) for _ = 1:1_000]
+        x = Union{Missing, T}[T.(strings); missing]
+        @test isequal(sort(x), Union{Missing, T}[T.(sort(strings)); missing])
+    end
 end
 
 @testset "inlinestrings" begin
@@ -524,6 +576,13 @@ end
     x = [randstring(i) for i = 1:31]
     @test InlineString.(x) == map(InlineString, x) == collect(InlineString, x)
     @test eltype(InlineString.(x)) == eltype(map(InlineString, x)) == eltype(collect(InlineString, x)) == InlineString31
+
+    x = reshape(Union{Missing, String}["a", missing, "bbb", "cccc"], 2, 2)
+    for y in (InlineString.(x), map(InlineString, x), collect(InlineString, x))
+        @test size(y) == size(x)
+        @test isequal(y, x)
+        @test eltype(y) == Union{Missing, String7}
+    end
 
     # promote all the way to String
     x = inlinestrings(randstring(i) for i = 1:256)
