@@ -2,6 +2,8 @@ module ParsersExt
 using Parsers
 using InlineStrings: InlineString, addcodeunit
 
+if isdefined(Parsers, :xparse)
+
 Parsers.xparse(::Type{T}, buf::AbstractString, pos, len, options, ::Type{S}=T) where {T <: InlineString, S} =
     Parsers.xparse(T, codeunits(buf), pos, len, options, S)
 
@@ -54,5 +56,7 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     end
     return Parsers.Result{S}(code, res.tlen, x)
 end
+
+end # Parsers 2 xparse API
 
 end

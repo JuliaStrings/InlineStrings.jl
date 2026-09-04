@@ -1,5 +1,19 @@
 using Test, InlineStrings, Parsers, Serialization, Random
-import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED, INVALID_DELIMITER, INVALID_QUOTED_FIELD, ESCAPED_STRING, NEWLINE, SUCCESS
+
+const _PARSERS_HAS_XPARSE = isdefined(Parsers, :xparse)
+if _PARSERS_HAS_XPARSE
+    import Parsers: SENTINEL, OK, EOF, OVERFLOW, QUOTED, DELIMITED,
+                    INVALID_DELIMITER, INVALID_QUOTED_FIELD, ESCAPED_STRING,
+                    NEWLINE, SUCCESS
+end
+
+@testset "Parsers extension loading" begin
+    if isdefined(Base, :get_extension)
+        @test Base.get_extension(InlineStrings, :ParsersExt) isa Module
+    else
+        @test isdefined(InlineStrings, :ParsersExt)
+    end
+end
 
 const SUBTYPES = (
     InlineString1,
@@ -381,7 +395,8 @@ end
     @test String3(a) * String3(b) * String7(b) isa InlineString15
 end
 
-@testset "InlineString parsing" begin
+if _PARSERS_HAS_XPARSE
+@testset "InlineString parsing with Parsers 2" begin
 testcases = [
     ("", InlineString7(""), NamedTuple(), OK | EOF),
     (" ", InlineString7(" "), NamedTuple(), OK | EOF),
@@ -460,6 +475,7 @@ res = Parsers.xparse(InlineString7, buf, pos, len, opts, Any)
 @test res.val == "abc"
 
 end # @testset
+end # Parsers 2 xparse API
 
 @testset "InlineString Serialization symmetry" begin
     for str in ("",  "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255)

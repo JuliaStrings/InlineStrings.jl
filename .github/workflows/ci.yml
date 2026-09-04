@@ -38,3 +38,29 @@ jobs:
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  parsers-compat:
+    name: Parsers ${{ matrix.parsers-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        parsers-version:
+          - '2'
+          - '3'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+      - uses: julia-actions/cache@v2
+      - name: Test selected Parsers major
+        shell: julia --color=yes --startup-file=no {0}
+        env:
+          PARSERS_VERSION: ${{ matrix.parsers-version }}
+        run: |
+          using Pkg
+          Pkg.activate(mktempdir())
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.add(PackageSpec(name="Parsers", version=ENV["PARSERS_VERSION"]))
+          Pkg.test("InlineStrings")
