@@ -22,7 +22,6 @@ jobs:
         os: [ubuntu-latest]
         package:
           - {user: JuliaData, repo: CSV.jl}
-          - {user: apache, repo: arrow-julia}
           - {user: JuliaTime, repo: TimeZones.jl}
 
     steps:
