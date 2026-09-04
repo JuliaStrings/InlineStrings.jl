@@ -22,6 +22,7 @@ jobs:
         os: [ubuntu-latest]
         package:
           - {user: JuliaData, repo: CSV.jl}
+          - {user: JuliaTime, repo: TimeZones.jl}
 
     steps:
       - uses: actions/checkout@v2

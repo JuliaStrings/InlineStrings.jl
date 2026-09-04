@@ -1,8 +1,14 @@
-using Test, Arrow, InlineStrings
+using Test, ArrowTypes, InlineStrings
 
-@testset "basic Arrow.jl interop" begin
-    t = (x = inlinestrings(["a", "b", "sailor"]),)
-    t2 = Arrow.Table(Arrow.tobuffer(t))
-    @test isequal(t.x, t2.x)
-    @test t2.x[1] isa InlineString
+# Exercise the ArrowTypes extension directly. Full Arrow.jl integration must wait
+# for TimeZones.jl to accept InlineStrings 2.
+@testset "ArrowTypes extension" begin
+    for T in (String1, String3, String7, String15, String31, String63, String127, String255)
+        nm = ArrowTypes.arrowname(T)
+        @test nm isa Symbol
+        @test ArrowTypes.JuliaType(Val(nm)) === T
+        s = "a"^min(3, sizeof(T) - 1)
+        @test GC.@preserve s ArrowTypes.fromarrow(T, pointer(s), sizeof(s)) === T(s)
+        @test ArrowTypes.toarrow(T(s)) == s
+    end
 end

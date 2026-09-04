@@ -15,7 +15,6 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     if !Parsers.valueok(code) || Parsers.sentinel(code)
         x = T()
     else
-        poslen = res.val
         if Parsers.escapedstring(code) || !(source isa AbstractVector{UInt8})
             if poslen.len > (sizeof(T) - 1)
                 overflowed = true
