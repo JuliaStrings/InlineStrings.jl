@@ -1,24 +1,30 @@
 name = "InlineStrings"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
 authors = ["Jacob Quinn <quinn.jacobd@gmail.com> and contributors"]
-version = "1.4.5"
-
-[deps]
-Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
+version = "2.0.0"
 
 [weakdeps]
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-
-[compat]
-Parsers = "2, 3"
-julia = "1.6"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 
 [extensions]
 ArrowTypesExt = "ArrowTypes"
 ParsersExt = "Parsers"
+SerializationExt = "Serialization"
+
+[compat]
+Aqua = "0.8"
+Arrow = "2"
+ArrowTypes = "1, 2"
+Parsers = "2, 3"
+Random = "1"
+Serialization = "1"
+Test = "1"
+julia = "1.10"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
 Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -26,4 +32,4 @@ Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Arrow", "Test", "Parsers", "Random", "Serialization"]
+test = ["Aqua", "Arrow", "Test", "Parsers", "Random", "Serialization"]
