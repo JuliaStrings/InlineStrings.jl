@@ -192,6 +192,7 @@ S = InlineString15
 # check that writing code units works as expected
 io = IOBuffer()
 cu = codeunits(InlineString("hello"))
+@test sizeof(cu) == 5
 @test write(io, cu) == 5
 @test take!(io) == codeunits("hello")
 
