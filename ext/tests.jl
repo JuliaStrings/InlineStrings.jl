@@ -1,7 +1,7 @@
 using Test, ArrowTypes, InlineStrings
 
-# Exercise the ArrowTypes extension directly: Arrow.jl itself depends on
-# TimeZones, whose InlineStrings compat lags, so it is tested downstream instead.
+# Exercise the ArrowTypes extension directly. Full Arrow.jl integration must wait
+# for TimeZones.jl to accept InlineStrings 2.
 @testset "ArrowTypes extension" begin
     for T in (String1, String3, String7, String15, String31, String63, String127, String255)
         nm = ArrowTypes.arrowname(T)

@@ -7,7 +7,7 @@ str_ascii = [String(x) for x in ascii]
 utf8 = [InlineString(string("π", x[3:end])) for x in ascii]
 str_utf8 = [String(x) for x in utf8]
 
-function bench(ascii, )
+function bench(ascii, str_ascii, utf8, str_utf8)
     for (x, y) in zip(ascii, str_ascii)
         @show typeof(x), @btime reverse($x)
         @show typeof(y), @btime reverse($y)
@@ -18,4 +18,4 @@ function bench(ascii, )
         @show typeof(y), @btime reverse($y)
     end
 end
-bench()
+bench(ascii, str_ascii, utf8, str_utf8)

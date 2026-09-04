@@ -46,6 +46,13 @@
 - `T(buf, pos, len)` validates `pos`/`len` against the buffer bounds.
 - Constructing from an `AbstractString` whose codeunits are not `UInt8`
   transcodes to UTF-8.
+- `inlinestrings` measures non-`UInt8` inputs after UTF-8 transcoding and keeps
+  working after the result widens to `String`.
+- `chopprefix` and `chopsuffix` use the inline string's byte boundaries when
+  the matched string uses non-`UInt8` code units.
+- Multi-codeunit `findnext` calls validate out-of-bounds start indices.
+- A `map` callback runs once per input character when its result must widen to
+  `String`.
 - `InlineString.(A)` and `map(InlineString, A)` preserve the shape of a matrix.
 
 ### Additions
@@ -61,3 +68,8 @@
   fallback.
 - Byte access on the 32-byte and wider types is up to an order of magnitude
   faster.
+- Range indexing avoids repeated wide-value spills, and wide ranges use a byte
+  copy instead of large dynamic integer shifts.
+- Searches with long needles use a bulk byte comparison after a short scalar
+  prefix check.
+- Repeating an empty inline string takes constant time.

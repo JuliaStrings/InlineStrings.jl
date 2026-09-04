@@ -22,6 +22,23 @@ Base.codeunit(::UTF16TestString) = UInt16
 Base.ncodeunits(s::UTF16TestString) = length(s.data)
 Base.codeunit(s::UTF16TestString, i::Integer) = s.data[i]
 Base.String(s::UTF16TestString) = transcode(String, s.data)
+Base.isvalid(s::UTF16TestString, i::Integer) = checkbounds(Bool, s.data, i)
+Base.length(s::UTF16TestString) = length(s.data)
+Base.getindex(s::UTF16TestString, i::Int) = Char(s.data[i])
+Base.iterate(s::UTF16TestString, i::Int=1) =
+    i > length(s.data) ? nothing : (Char(s.data[i]), i + 1)
+
+struct Latin1TestString <: AbstractString
+    data::Vector{UInt8}
+end
+Base.codeunit(::Latin1TestString) = UInt8
+Base.ncodeunits(s::Latin1TestString) = length(s.data)
+Base.codeunit(s::Latin1TestString, i::Integer) = s.data[i]
+Base.isvalid(s::Latin1TestString, i::Integer) = checkbounds(Bool, s.data, i)
+Base.length(s::Latin1TestString) = length(s.data)
+Base.getindex(s::Latin1TestString, i::Int) = Char(s.data[i])
+Base.iterate(s::Latin1TestString, i::Int=1) =
+    i > length(s.data) ? nothing : (Char(s.data[i]), i + 1)
 
 const SUBTYPES = (
     InlineString1,
@@ -80,6 +97,7 @@ x = InlineString7(buf)
 @test_throws ArgumentError InlineString7(buf, 3, 2)
 @test_throws ArgumentError InlineString7(buf, 0, 1)
 @test_throws ArgumentError InlineString7(buf, 1, -1)
+@test_throws ArgumentError InlineString7(UInt8(0x61):UInt8(0x63), typemax(Int), 2)
 @test InlineString7(buf, 2) === InlineString7("ey")
 @test InlineString7(buf, 4) === InlineString7("")
 @test InlineString7(view(buf, 2:3)) === InlineString7("ey")
@@ -182,6 +200,9 @@ if isdefined(Base, :chopprefix)
 @test chopprefix(abc, "bc") === abc
 @test chopprefix(abc, "abc") === InlineString3("")
 @test chopprefix(InlineString1("a"), "a") === InlineString1("")
+@test chopprefix(InlineString15("éx"), UTF16TestString(transcode(UInt16, "é"))) === InlineString15("x")
+@test chopprefix(InlineString15("βéx"), UTF16TestString(transcode(UInt16, "βé"))) === InlineString15("x")
+@test chopprefix(InlineString15("éx"), Latin1TestString(UInt8[0xe9])) === InlineString15("x")
 # Regex case
 @test chopprefix(InlineString15("∃∃∃b∃"), r"∃+") === InlineString15("b∃")
 @test chopprefix(InlineString1("a"), r".") === InlineString1("")
@@ -192,6 +213,9 @@ if isdefined(Base, :chopsuffix)
 @test chopsuffix(abc, "bc") === InlineString3("a")
 @test chopsuffix(abc, "abc") === InlineString3("")
 @test chopsuffix(InlineString1("c"), "c") === InlineString1("")
+@test chopsuffix(InlineString15("xé"), UTF16TestString(transcode(UInt16, "é"))) === InlineString15("x")
+@test chopsuffix(InlineString15("xβé"), UTF16TestString(transcode(UInt16, "βé"))) === InlineString15("x")
+@test chopsuffix(InlineString15("xé"), Latin1TestString(UInt8[0xe9])) === InlineString15("x")
 # Regex case
 @test chopsuffix(InlineString15("∃b∃∃∃"), r"∃+") === InlineString15("∃b")
 @test chopsuffix(InlineString1("c"), r".") === InlineString1("")
@@ -302,8 +326,21 @@ for S in SUBTYPES
     end
 end
 
+# The wide-type range fast path must preserve malformed bytes and offsets.
+for S in (InlineString127, InlineString255)
+    middle = sizeof(S) ÷ 2
+    raw = [UInt8('a'); fill(UInt8(0x80), middle - 2); UInt8('b');
+           fill(UInt8(0x80), sizeof(S) - middle - 2); UInt8('z')]
+    str = String(copy(raw))
+    inline = S(raw)
+    for r in (1:length(raw), middle:length(raw))
+        @test collect(codeunits(inline[r])) == collect(codeunits(str[r]))
+    end
+end
+
 # repeat one-time should return the same object
 @test repeat(InlineString("abc"), 1) === InlineString("abc")
+@test repeat(InlineString(""), typemax(Int)) == ""
 
 # can't contain NUL when converting to Cstring
 @test_throws ArgumentError Base.cconvert(Cstring, InlineString("a\0c"))
@@ -644,6 +681,19 @@ end
     # promote all the way to String
     x = inlinestrings(randstring(i) for i = 1:256)
     @test eltype(x) === String
+    strings = ["a"^256, "b", "c"^255]
+    @test inlinestrings(strings) == strings
+    strings_with_missing = Union{Missing, String}["a"^256, missing, "b"]
+    @test isequal(inlinestrings(strings_with_missing), strings_with_missing)
+    repeated_missing = Union{Missing, String}["a", missing, "b", missing]
+    @test isequal(inlinestrings(repeated_missing), repeated_missing)
+    utf16_wider = UTF16TestString(transcode(UInt16, "€€€"))
+    @test inlinestrings(AbstractString["abcd", utf16_wider]) == ["abcd", "€€€"]
+    @test eltype(inlinestrings(AbstractString["abcd", utf16_wider])) === String15
+    utf16_fits = UTF16TestString(transcode(UInt16, "a"^200))
+    @test eltype(inlinestrings([utf16_fits])) === String255
+    utf16_overflows = UTF16TestString(transcode(UInt16, "∀"^100))
+    @test eltype(inlinestrings([utf16_overflows])) === String
     x = inlinestrings(i == 1 ? missing : randstring(i) for i = 1:256 if t())
     @test eltype(x) === Union{Missing, String}
 
@@ -764,6 +814,9 @@ end
     s = String3("abc")
     @test map(c -> 'é', s) == "ééé"
     @test map(c -> 'é', s) isa String
+    calls = Ref(0)
+    @test map(c -> (calls[] += 1; 'é'), s) == "ééé"
+    @test calls[] == length(s)
     @test map(c -> 'x', s) === String3("xxx")
     @test uppercase(String3("ǆ")) == "Ǆ" # 2-byte char, 2-byte result
     @test_throws ArgumentError map(c -> 1, s)
@@ -829,7 +882,8 @@ end
     for S in (String31, String63, String255)
         s = S("héllo wörld héllo")
         str = String(s)
-        for t in ("", "h", "héllo", "wör", "d h", "xyz", "héllo wörld héllo", "o", "é")
+        for t in ("", "h", "héllo", "wör", "d h", "xyz", "héllo wörld héllo",
+                  "héllo wörld héllx", "o", "é")
             @test occursin(t, s) == occursin(t, str)
             @test findfirst(t, s) == findfirst(t, str)
             @test findall(t, s) == findall(t, str)
@@ -846,6 +900,8 @@ end
         end
         @test_throws BoundsError findnext("h", s, 0)
         @test_throws BoundsError findnext("h", s, ncodeunits(s) + 2)
+        @test_throws BoundsError findnext("hé", s, 0)
+        @test_throws BoundsError findnext("hé", s, ncodeunits(s) + 2)
         @test replace(s, "héllo" => "bye") == replace(str, "héllo" => "bye")
         @test split(s, "wörld") == split(str, "wörld")
         for c in ('h', 'é', 'ö', 'd', 'z', '\x80', '🍕')

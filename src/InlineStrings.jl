@@ -154,6 +154,10 @@ end
 @inline function _sub(s::T, i::Int, j::Int) where {T <: InlineString}
     n = j - i + 1
     n <= 0 && return T()
+    if sizeof(T) >= 128
+        ref = Ref(s)
+        return GC.@preserve ref _load(T, _ptr(ref) + (i - 1), n, n)
+    end
     sh = 8 * (sizeof(T) - j)  # shift out everything above byte j, then down to byte i
     return _withlen(Base.lshr_int(Base.shl_int(s, sh), sh + 8 * (i - 1)), n)
 end
@@ -324,7 +328,8 @@ for T in (:InlineString1, :InlineString3, :InlineString7, :InlineString15, :Inli
         len = Int(len)
         len < 0 && invalidlength(len)
         len < sizeof($T) || stringtoolong($T, len)
-        len > 0 && !(firstindex(buf) <= pos && pos + len - 1 <= lastindex(buf)) && buftoosmall(len)
+        len == 0 && return $T()
+        !(firstindex(buf) <= pos <= lastindex(buf) && len - 1 <= lastindex(buf) - pos) && buftoosmall(len)
         if buf isa PointerBytes
             return GC.@preserve buf _load($T, pointer(buf, pos), len, lastindex(buf) - pos + 1)
         else
@@ -527,6 +532,8 @@ end
 # Sub-string operations (always return the same inline type)
 #-----------------------------------------------------------------------------
 
+const NativeUTF8String = Union{String, SubString{String}, InlineString}
+
 function Base.chop(s::InlineString; head::Integer = 0, tail::Integer = 1)
     isempty(s) && return s
     n = ncodeunits(s)
@@ -540,8 +547,17 @@ Base.getindex(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, In
 Base.@propagate_inbounds function Base.getindex(s::InlineString, r::UnitRange{Int})
     isempty(r) && return typeof(s)()
     i, j = first(r), last(r)
+    @boundscheck checkbounds(s, i:j)
+    if sizeof(typeof(s)) > 2
+        bytes = _bytes(s)
+        # An ASCII byte is always a character boundary. This common path also avoids
+        # materializing the byte tuple once each in `isvalid(i)`, `isvalid(j)`, and
+        # `nextind(j)` for the wide inline types.
+        if @inbounds bytes[i] < 0x80 && bytes[j] < 0x80
+            return _sub(s, i, j)
+        end
+    end
     @boundscheck begin
-        checkbounds(s, i:j)
         @inbounds isvalid(s, i) || Base.string_index_err(s, i)
         @inbounds isvalid(s, j) || Base.string_index_err(s, j)
     end
@@ -552,7 +568,14 @@ Base.view(s::InlineString, r::AbstractUnitRange{<:Integer}) = getindex(s, r)
 
 function Base.chopprefix(s::InlineString, prefix::AbstractString)
     (!isempty(prefix) && startswith(s, prefix)) || return s
-    return _sub(s, ncodeunits(prefix) + 1, ncodeunits(s))
+    # For non-UTF-8 code units, advance in `s` so its storage determines the
+    # byte boundary to keep. Preserve the constant-time UTF-8 path.
+    i = if prefix isa NativeUTF8String
+        ncodeunits(prefix) + 1
+    else
+        nextind(s, firstindex(s), length(prefix))
+    end
+    return _sub(s, i, ncodeunits(s))
 end
 function Base.chopprefix(s::InlineString, prefix::Regex)
     m = match(prefix, String(s), firstindex(s), Base.PCRE.ANCHORED)
@@ -562,7 +585,14 @@ end
 
 function Base.chopsuffix(s::InlineString, suffix::AbstractString)
     (!isempty(suffix) && endswith(s, suffix)) || return s
-    return _sub(s, 1, ncodeunits(s) - ncodeunits(suffix))
+    # For non-UTF-8 code units, retreat in `s` so its storage determines the
+    # byte boundary to keep. Preserve the constant-time UTF-8 path.
+    j = if suffix isa NativeUTF8String
+        ncodeunits(s) - ncodeunits(suffix)
+    else
+        prevind(s, ncodeunits(s) + 1, length(suffix)) - 1
+    end
+    return _sub(s, 1, j)
 end
 function Base.chopsuffix(s::InlineString, suffix::Regex)
     m = match(suffix, String(s), firstindex(s), Base.PCRE.ENDANCHORED)
@@ -641,23 +671,42 @@ end
 
 # `map` keeps the inline type when the result fits, and falls back to a `String`
 # (like the `AbstractString` fallback) when it does not.
+@inline function _mapchar(c′)
+    isa(c′, AbstractChar) || throw(ArgumentError(
+        "map(f, s::AbstractString) requires f to return AbstractChar; " *
+        "try map(f, collect(s)) or a comprehension instead"))
+    return convert(Char, c′)
+end
+
+@noinline function _map_to_string(f, s::InlineString, i::Int, ptr::Ptr{UInt8}, n::Int, c::Char)
+    io = IOBuffer(; sizehint=max(ncodeunits(s), n + ncodeunits(c)))
+    Base.unsafe_write(io, ptr, UInt(n))
+    write(io, c)
+    last = ncodeunits(s)
+    while i <= last
+        value, i = @inbounds iterate(s, i)
+        write(io, _mapchar(f(value)))
+    end
+    return String(take!(io))
+end
+
 function Base.map(f, s::T) where {T <: InlineString}
     ref = Ref{T}(_zero(T))
     n = 0
     GC.@preserve ref begin
         ptr = Ptr{UInt8}(pointer_from_objref(ref))
+        i = 1
         for c in s
-            c′ = f(c)
-            isa(c′, AbstractChar) || throw(ArgumentError(
-                "map(f, s::AbstractString) requires f to return AbstractChar; " *
-                "try map(f, collect(s)) or a comprehension instead"))
-            u = bswap(reinterpret(UInt32, convert(Char, c′)))
+            nexti = i + ncodeunits(c)
+            c′ = _mapchar(f(c))
+            u = bswap(reinterpret(UInt32, c′))
             k = ncodeunits(c′)
-            n + k < sizeof(T) || return invoke(map, Tuple{Any, AbstractString}, f, s)::String
+            n + k < sizeof(T) || return _map_to_string(f, s, nexti, ptr, n, c′)
             for m = 1:k
                 unsafe_store!(ptr, (u >> (8 * (m - 1))) % UInt8, n + m)
             end
             n += k
+            i = nexti
         end
     end
     return _withlen(ref[], n)
@@ -738,6 +787,7 @@ function Base.repeat(x::InlineString, r::Integer)
     r == 0 && return ""
     r == 1 && return x
     n = sizeof(x)
+    n == 0 && return ""
     out = Base._string_n(n * r)
     if n == 1 # common case: repeating a single-byte string
         @inbounds b = codeunit(x, 1)
@@ -787,15 +837,36 @@ end
 
 # Byte searches over the (hoisted) byte tuple, matching `String`'s byte-level
 # semantics; these back `occursin`, `findfirst`/`findnext`, `findall`, `replace`...
+@inline function _searchindex_memcmp(sptr::Ptr{UInt8}, tptr::Ptr{UInt8}, i::Int, last::Int, n::Int)
+    b1 = unsafe_load(tptr)
+    @inbounds for k = i:last
+        unsafe_load(sptr, k) == b1 || continue
+        _memcmp(sptr + k, tptr + 1, n - 1) == 0 && return k
+    end
+    return 0
+end
+
+function _searchindex_memcmp(s::InlineString, t::InlineString, i::Int, last::Int, n::Int)
+    sref, tref = Ref(s), Ref(t)
+    return GC.@preserve sref tref _searchindex_memcmp(_ptr(sref), _ptr(tref), i, last, n)
+end
+
+function _searchindex_memcmp(s::InlineString, t::Union{String, SubString{String}}, i::Int, last::Int, n::Int)
+    ref = Ref(s)
+    return GC.@preserve ref t _searchindex_memcmp(_ptr(ref), pointer(t), i, last, n)
+end
+
 function Base._searchindex(s::InlineString, t::Union{String, SubString{String}, InlineString}, i::Integer)
     n, m = ncodeunits(t), ncodeunits(s)
     i = Int(i)
-    n == 0 && return 1 <= i <= m + 1 ? i : throw(BoundsError(s, i))
+    1 <= i <= m + 1 || throw(BoundsError(s, i))
+    n == 0 && return i
     # like `String`, a single-character needle goes through `findnext`, which validates `i`
     lastindex(t) == 1 && return something(findnext(isequal(t[1]), s, i), 0)
     w = m - n
     (w < 0 || i - 1 > w) && return 0
-    i < 1 && return 0
+    # libc's vectorized comparison repays its call overhead for long needles.
+    n >= 16 && return _searchindex_memcmp(s, t, i, w + 1, n)
     bytes = _bytes(s)
     @inbounds b1 = codeunit(t, 1)
     @inbounds for k = i:(w + 1)
@@ -1029,7 +1100,8 @@ function inlinestrings(itr::T) where {T}
     state = iterate(itr)
     state === nothing && return []
     y, st = state
-    x = y === missing ? missing : sizeof(y) < 256 ? InlineString(y) : String(y)
+    y = y === missing ? missing : _utf8_source(y)
+    x = y === missing ? missing : ncodeunits(y) < 256 ? InlineString(y) : String(y)
     eT = typeof(x)
     # allocate res, which will either be same length as `itr` if
     # IS <: HasLength, or length of 0 if Base.SizeUnknown
@@ -1047,20 +1119,24 @@ allocate(::Type{T}, ::HasLength, itr) where {T} = Vector{T}(undef, length(itr))
 allocate(::Type{T}, IS, itr) where {T} = Vector{T}(undef, 0)
 set!(::HasLength, res, x, i) = setindex!(res, x, i)
 set!(IS, res, x, i) = push!(res, x)
+_utf8_source(y::AbstractString) = codeunit(y) === UInt8 ? y : String(y)
+_fits_inline_storage(::Type{String}, y) = true
+_fits_inline_storage(::Type{T}, y) where {T} = ncodeunits(y) < sizeof(T)
 
 function _inlinestrings(itr, st, ::Type{eT}, IS, res, i) where {eT}
     while true
         state = iterate(itr, st)
         state === nothing && break
         y, st = state
+        y = y === missing ? missing : _utf8_source(y)
         if y === missing && eT >: Missing
             set!(IS, res, missing, i)
-        elseif y !== missing && eT !== Missing && (sizeof(y) < sizeof(eT) || sizeof(y) == 1)
+        elseif y !== missing && eT !== Missing && _fits_inline_storage(Base.nonmissingtype(eT), y)
             set!(IS, res, Base.nonmissingtype(eT)(y), i)
         else
             # need to promote and widen res,
             # then re-dispatch on _inlinestrings for new eltype
-            x = y === missing ? missing : sizeof(y) < 256 ? InlineString(y) : String(y)
+            x = y === missing ? missing : ncodeunits(y) < 256 ? InlineString(y) : String(y)
             new_eT = promote_type(typeof(x), eT)
             newres = allocate(new_eT, Base.HasLength(), res)
             copyto!(newres, 1, res, 1, i - 1)

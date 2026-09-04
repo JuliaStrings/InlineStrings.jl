@@ -1,7 +1,7 @@
 # InlineStrings
 
 [![CI](https://github.com/JuliaStrings/InlineStrings.jl/workflows/CI/badge.svg)](https://github.com/JuliaStrings/InlineStrings.jl/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/JuliaStrings/InlineStrings.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaStrings/InlineStrings.jl)
+[![codecov](https://codecov.io/gh/JuliaStrings/InlineStrings.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/JuliaStrings/InlineStrings.jl)
 [![deps](https://juliahub.com/docs/InlineStrings/deps.svg)](https://juliahub.com/ui/Packages/InlineStrings/muGbw?t=2)
 [![version](https://juliahub.com/docs/InlineStrings/version.svg)](https://juliahub.com/ui/Packages/InlineStrings/muGbw)
 [![pkgeval](https://juliahub.com/docs/InlineStrings/pkgeval.svg)](https://juliahub.com/ui/Packages/InlineStrings/muGbw)
@@ -18,14 +18,15 @@ julia> using Pkg; Pkg.add("InlineStrings")
 
 ## Project Status
 
-The package is tested against the latest Julia `1.x` release, the long-term support release `1.10`, and pre-releases on Linux, OS X, and Windows.
+The package tests the latest Julia `1.x` release, Julia `1.10`, and pre-releases
+on Linux and Windows. It also tests the latest Julia release on macOS.
 
 ## Contributing and Questions
 
 Contributions are very welcome, as are feature requests and suggestions. Please open an
 [issue][issues-url] if you encounter any problems or would just like to ask a question.
 
-[codecov-img]: https://codecov.io/gh/JuliaStrings/InlineStrings.jl/branch/master/graph/badge.svg
+[codecov-img]: https://codecov.io/gh/JuliaStrings/InlineStrings.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaStrings/InlineStrings.jl
 
 [issues-url]: https://github.com/JuliaStrings/InlineStrings.jl/issues
@@ -54,7 +55,7 @@ promoted `InlineString` type, the `inlinestrings(A)` utility function is exporte
 
 #### Equality
 
-An inline string is value equal (`==`), but not identical equal (`===`) to the corresponding `String`:
+An inline string is value equal (`==`), but not identical equal (`===`), to the corresponding `String`:
 
 ```julia-repl
 
@@ -73,10 +74,10 @@ false
 
 #### Dictionaries & Hashes
 
-The hash value of an inline string is the same as it's `String` counterpart. Continuing the above example:
+The hash value of an inline string is the same as its `String` counterpart. Continuing the above example:
 
 ```julia-repl
-julia> Dict(s => 1, i => 2)
+julia> y = Dict(s => 1, i => 2)
 Dict{AbstractString, Int64} with 1 entry:
   String15("abc") => 2
 
@@ -89,8 +90,9 @@ Dict{String15, Int64} with 1 entry:
 
 ```
 
-Note how the `Dict` is passed two key-value pairs but the result contains only one. 
-This is because we've only given the dictionary a single key (`Dict`s use the object's hash as it's underlying key), since `i` and `s` implement the same hash:
+The `Dict` receives two key-value pairs, but the result contains one entry.
+This is because `Dict` uses both `hash` and `isequal`, and `i` and `s` have the
+same value and hash:
 
 ```julia-repl
 julia> hash(i)
@@ -130,7 +132,7 @@ sorting a `Vector{String7}` is several times faster than sorting the equivalent
 
 #### Additional details
 
-Use the REPL's help mode to see more details, such as those desribed here for `String15`:
+Use the REPL's help mode to see more details, such as those described here for `String15`:
 
 ```julia-repl
 help?> String15
