@@ -7,6 +7,14 @@ if _PARSERS_HAS_XPARSE
                     NEWLINE, SUCCESS
 end
 
+@testset "Parsers extension loading" begin
+    if isdefined(Base, :get_extension)
+        @test Base.get_extension(InlineStrings, :ParsersExt) isa Module
+    else
+        @test isdefined(InlineStrings, :ParsersExt)
+    end
+end
+
 const SUBTYPES = (
     InlineString1,
     InlineString3,
