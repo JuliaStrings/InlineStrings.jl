@@ -1,7 +1,7 @@
 name = "InlineStrings"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
 authors = ["Jacob Quinn <quinn.jacobd@gmail.com> and contributors"]
-version = "2.0.0"
+version = "2.0.1"
 
 [weakdeps]
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
