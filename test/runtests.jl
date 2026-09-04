@@ -868,6 +868,4 @@ end
     Aqua.test_all(InlineStrings)
 end
 
-if Sys.WORD_SIZE == 64
 include(joinpath(dirname(pathof(InlineStrings)), "../ext/tests.jl"))
-end
