@@ -194,6 +194,7 @@ struct InlineCodeUnits{T <: InlineString} <: AbstractVector{UInt8}
 end
 Base.codeunits(s::InlineString) = InlineCodeUnits(s)
 Base.size(c::InlineCodeUnits) = (ncodeunits(c.s),)
+Base.sizeof(c::InlineCodeUnits) = ncodeunits(c.s)
 Base.IndexStyle(::Type{<:InlineCodeUnits}) = IndexLinear()
 Base.@propagate_inbounds Base.getindex(c::InlineCodeUnits, i::Int) = codeunit(c.s, i)
 Base.write(io::IO, c::InlineCodeUnits) = write(io, c.s)
