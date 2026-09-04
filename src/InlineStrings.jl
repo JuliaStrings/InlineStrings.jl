@@ -829,7 +829,7 @@ function Base.findnext(pred::Base.Fix2{<:Union{typeof(isequal), typeof(==)}, <:A
     @inbounds isvalid(s, i) || Base.string_index_err(s, i)
     c = pred.x
     c ≤ '\x7f' && return _searchbyte(s, c % UInt8, i)
-    b1 = Base.first_utf8_byte(c)
+    b1 = (reinterpret(UInt32, Char(c)) >> 24) % UInt8  # first UTF-8 byte of `c`
     while true
         i = _searchbyte(s, b1, i)
         i === nothing && return nothing
