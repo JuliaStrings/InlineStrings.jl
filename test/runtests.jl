@@ -342,6 +342,13 @@ end
 # repeat one-time should return the same object
 @test repeat(InlineString("abc"), 1) === InlineString("abc")
 @test repeat(InlineString(""), typemax(Int)) == ""
+# Reject a wrapped byte count before allocating or copying the repeated data.
+@test_throws OverflowError repeat(InlineString("abcd"), typemax(Int) ÷ 2 + 1)
+@test_throws OverflowError repeat(InlineString("abcd"), typemax(UInt) ÷ 4 + 1)
+for R in (Int8, Int, UInt, Int128, BigInt)
+    @test repeat(InlineString("λ"), R(3)) == "λλλ"
+end
+
 
 # can't contain NUL when converting to Cstring
 @test_throws ArgumentError Base.cconvert(Cstring, InlineString("a\0c"))

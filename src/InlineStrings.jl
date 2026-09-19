@@ -789,7 +789,7 @@ function Base.repeat(x::InlineString, r::Integer)
     r == 1 && return x
     n = sizeof(x)
     n == 0 && return ""
-    out = Base._string_n(n * r)
+    out = Base._string_n(Base.checked_mul(n, r))
     if n == 1 # common case: repeating a single-byte string
         @inbounds b = codeunit(x, 1)
         ccall(:memset, Ptr{Cvoid}, (Ptr{UInt8}, Cint, Csize_t), out, b, r)
