@@ -21,6 +21,8 @@ jobs:
         version: '1'
     - uses: actions/checkout@v3
     - uses: julia-actions/julia-buildpkg@v1
+    - name: Warm the package cache
+      run: julia --color=yes --project=. -e 'import InlineStrings'
     - uses: julia-actions/julia-invalidations@v1
       id: invs_pr
 
@@ -28,6 +30,8 @@ jobs:
       with:
         ref: ${{ github.event.repository.default_branch }}
     - uses: julia-actions/julia-buildpkg@v1
+    - name: Warm the package cache
+      run: julia --color=yes --project=. -e 'import InlineStrings'
     - uses: julia-actions/julia-invalidations@v1
       id: invs_default
 
