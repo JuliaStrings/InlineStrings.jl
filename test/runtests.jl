@@ -761,7 +761,8 @@ end
     @test (@ccall strcmp(InlineString15("hello")::Cstring, InlineString15("world")::Cstring)::Cint) < 0
     @test (@ccall strcmp(InlineString15("test")::Cstring, InlineString15("testing")::Cstring)::Cint) < 0
     @test_throws ArgumentError Base.cconvert(Cstring, InlineString15("has\0null"))
-    @test unsafe_string(Base.unsafe_convert(Ptr{UInt8}, Base.cconvert(Ptr{UInt8}, InlineString15("has\0null"))), 8) == "has\0null"
+    ref_uint8 = Base.cconvert(Ptr{UInt8}, InlineString15("has\0null"))
+    @test GC.@preserve ref_uint8 unsafe_string(Base.unsafe_convert(Ptr{UInt8}, ref_uint8), 8) == "has\0null"
     @test reinterpret(UInt32, String3("a")) == 0x02000061
     @test reinterpret(UInt32, String3("abc")) == 0x00636261
 end
