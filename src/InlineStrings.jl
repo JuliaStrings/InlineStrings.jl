@@ -183,23 +183,47 @@ Base.@propagate_inbounds function Base.codeunit(x::InlineString, i::Int)
 end
 
 """
-    InlineStrings.InlineCodeUnits
+    InlineStrings.InlineCodeUnits(s::InlineString)
 
 The `AbstractVector{UInt8}` returned by `codeunits(::InlineString)`. Unlike
 `Base.CodeUnits`, it is not a `DenseVector`: an inline string is a plain value
 with no stable memory address, so no `pointer` can be taken to it.
+The view owns its storage. Wide values use a byte tuple so indexing does not
+repeatedly unpack the primitive; small values retain direct bit-shift access.
 """
-struct InlineCodeUnits{T <: InlineString} <: AbstractVector{UInt8}
-    s::T
+struct InlineCodeUnits{T <: InlineString, B} <: AbstractVector{UInt8}
+    bytes::B
+    function InlineCodeUnits(s::T) where {T <: InlineString}
+        bytes = sizeof(T) <= _SHIFTMAX ? s : _bytes(s)
+        return new{T, typeof(bytes)}(bytes)
+    end
 end
+InlineCodeUnits{T}(s) where {T <: InlineString} = InlineCodeUnits(convert(T, s))
+_inlinevalue(c::InlineCodeUnits{T}) where {T} =
+    sizeof(T) <= _SHIFTMAX ? c.bytes : reinterpret(T, c.bytes)
 Base.codeunits(s::InlineString) = InlineCodeUnits(s)
-Base.size(c::InlineCodeUnits) = (ncodeunits(c.s),)
-Base.sizeof(c::InlineCodeUnits) = ncodeunits(c.s)
+Base.size(c::InlineCodeUnits) = (ncodeunits(_inlinevalue(c)),)
+Base.sizeof(c::InlineCodeUnits) = length(c)
 Base.IndexStyle(::Type{<:InlineCodeUnits}) = IndexLinear()
-Base.@propagate_inbounds Base.getindex(c::InlineCodeUnits, i::Int) = codeunit(c.s, i)
-Base.write(io::IO, c::InlineCodeUnits) = write(io, c.s)
-Base.String(c::InlineCodeUnits) = String(c.s)
-Base.Vector{UInt8}(c::InlineCodeUnits) = Vector{UInt8}(c.s)
+Base.@propagate_inbounds function Base.getindex(c::InlineCodeUnits{T}, i::Int) where {T}
+    sizeof(T) <= _SHIFTMAX && return codeunit(c.bytes, i)
+    @boundscheck checkbounds(Bool, c, i) || throw(BoundsError(_inlinevalue(c), i))
+    return @inbounds c.bytes[i]
+end
+function Base.write(io::IO, c::InlineCodeUnits)
+    ref = Ref(c)
+    return GC.@preserve ref unsafe_write(io, _ptr(ref), length(c) % UInt)
+end
+function Base.String(c::InlineCodeUnits)
+    ref = Ref(c)
+    return GC.@preserve ref unsafe_string(_ptr(ref), length(c))
+end
+function Base.Vector{UInt8}(c::InlineCodeUnits)
+    out = Vector{UInt8}(undef, length(c))
+    ref = Ref(c)
+    GC.@preserve ref out unsafe_copyto!(pointer(out), _ptr(ref), length(c))
+    return out
+end
 
 Base.pointer(::T) where {T <: InlineString} = throw(ArgumentError(
     "$T values have no stable memory address, so `pointer` is not defined; " *

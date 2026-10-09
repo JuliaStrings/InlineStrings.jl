@@ -56,6 +56,11 @@ function Parsers.xparse(::Type{T}, source::Union{AbstractVector{UInt8}, IO}, pos
     return Parsers.Result{S}(code, res.tlen, x)
 end
 
-end # Parsers 2 xparse API
+else
+
+# InlineString stores UTF-8 bytes directly; its owned view needs no String copy.
+Parsers._bytes(s::InlineString) = codeunits(s)
+
+end # Parsers 2 xparse API / Parsers 3 byte input
 
 end

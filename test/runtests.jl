@@ -594,6 +594,10 @@ res = Parsers.xparse(InlineString7, buf, pos, len, opts, Any)
 end # @testset
 end # Parsers 2 xparse API
 
+if !_PARSERS_HAS_XPARSE
+    include("parsers3.jl")
+end
+
 @testset "InlineString Serialization symmetry" begin
     for str in ("",  "🍕", "a", "a"^3, "a"^7, "a"^15, "a"^31, "a"^63, "a"^127, "a"^255)
         buf = IOBuffer()
@@ -785,6 +789,56 @@ end
     @test Vector{UInt8}(cu) == Vector{UInt8}("abc\nss\n")
     @test transcode(UInt16, cu) == transcode(UInt16, "abc\nss\n")
     @test sprint(write, cu) == "abc\nss\n"
+end
+
+@testset "owned codeunit storage" begin
+    owned = []
+    rng = MersenneTwister(592)
+    for T in SUBTYPES
+        capacity = sizeof(T) - 1
+        for len in unique((0, 1, max(0, capacity - 1), capacity))
+            bytes = rand(rng, UInt8, len)
+            value = T(String(copy(bytes)))
+            push!(owned, (codeunits(value), bytes, value))
+        end
+        for text in ("a\0", "é", "é\0", "🙂")
+            ncodeunits(text) <= capacity || continue
+            value = T(text)
+            push!(owned, (InlineStrings.InlineCodeUnits(value), Vector{UInt8}(text), value))
+        end
+        @test InlineStrings.InlineCodeUnits{T}("a") == UInt8[0x61]
+    end
+    GC.gc()
+    for (bytes, expected, value) in owned
+        @test bytes isa InlineStrings.InlineCodeUnits{typeof(value)}
+        @test isbitstype(typeof(bytes))
+        @test !(bytes isa DenseVector)
+        @test size(bytes) == (length(expected),)
+        @test sizeof(bytes) == length(expected)
+        @test axes(bytes) == (Base.OneTo(length(expected)),)
+        @test collect(bytes) == expected
+        @test Vector{UInt8}(bytes) == expected
+        @test String(bytes) == String(copy(expected))
+        @test collect(String(bytes)) == collect(value)
+        @test sum(bytes) == sum(expected)
+        @test findfirst(iszero, bytes) == findfirst(iszero, expected)
+        @test findlast(iszero, bytes) == findlast(iszero, expected)
+        @test bytes[:] == expected
+        io = IOBuffer()
+        @test write(io, bytes) == length(expected)
+        @test take!(io) == expected
+        @test_throws Exception pointer(bytes)
+        for i in (0, length(expected) + 1)
+            error = try
+                bytes[i]
+            catch e
+                e
+            end
+            @test error isa BoundsError
+            @test error.a === value
+            @test error.i == i
+        end
+    end
 end
 
 # https://github.com/JuliaStrings/InlineStrings.jl/issues/89
