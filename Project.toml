@@ -1,12 +1,17 @@
 name = "InlineStrings"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
-authors = ["Jacob Quinn <quinn.jacobd@gmail.com> and contributors"]
 version = "2.0.1"
+authors = ["Jacob Quinn <quinn.jacobd@gmail.com> and contributors"]
+
+[deps]
+Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 
 [weakdeps]
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
-Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[sources]
+Parsers = {path = "/Users/jacob.quinn/.julia/dev/maintenance-sweep-20261003/data-agent-Parsers-integrations"}
 
 [extensions]
 ArrowTypesExt = "ArrowTypes"
