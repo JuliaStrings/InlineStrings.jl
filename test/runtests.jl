@@ -920,6 +920,25 @@ end
         @test_throws BoundsError findnext(==('h'), s, 0)
         @test_throws BoundsError findnext(==('h'), s, ncodeunits(s) + 2)
     end
+    # Searching forward or backward, with the inline string as the haystack, the
+    # needle, or both, gives the `String` result, including for malformed UTF-8
+    # and empty needles.
+    for (str, t) in (("x\xe9\xa9", "x\xe9"), ("", ""), ("ab", ""), ("a\xe2\x82a\xe2", "a\xe2"))
+        for S in (String7, String255), (h, n) in ((S(str), t), (S(str), S(t)), (str, S(t)))
+            @test findfirst(n, h) == findfirst(t, str)
+            @test findlast(n, h) == findlast(t, str)
+            @test occursin(n, h) == occursin(t, str)
+            @test replace(h, n => "-") == replace(str, t => "-")
+            for i in 0:ncodeunits(str)+1
+                ref = try findprev(t, str, i) catch e; e end
+                if ref isa Exception
+                    @test_throws typeof(ref) findprev(n, h, i)
+                else
+                    @test findprev(n, h, i) == ref
+                end
+            end
+        end
+    end
 end
 
 @testset "Aqua" begin
