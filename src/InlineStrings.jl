@@ -739,8 +739,10 @@ end
 # Concatenation
 #-----------------------------------------------------------------------------
 
-Base.string(a::InlineString) = a
-Base.string(a::InlineString...) = _string(a...)
+# One-argument `string` is Base's `string(s::AbstractString) = s`. Inference gives up on a call
+# with more than 3 matching methods, and Base alone has at least 3 for `string(::AbstractString)`,
+# so a one-argument method here can make `string.(AbstractString[])` a `Vector{Any}` (#2).
+Base.string(a::InlineString, b::InlineString, c::InlineString...) = _string(a, b, c...)
 
 @inline function _string(a::InlineString...)
     n = 0

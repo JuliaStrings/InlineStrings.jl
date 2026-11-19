@@ -10,6 +10,9 @@
   character-level search, which disagreed with `String` on malformed UTF-8,
   threw for `findlast("", String7(""))`, and threw for a `findprev(==(c), s, i)`
   start index inside a character.
+- On Julia 1.14, loading InlineStrings no longer turns `string.(AbstractString[])`
+  into a `Vector{Any}`. InlineStrings no longer adds one-argument `string`
+  methods; `string(x::InlineString)` still returns `x`.
 
 ## 2.0.0
 

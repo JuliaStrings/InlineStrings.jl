@@ -131,6 +131,7 @@ utf16 = UTF16TestString(transcode(UInt16, "éβ"))
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/2
 @test eltype(string.(AbstractString[])) == AbstractString
+@test string(String7("ab")) === String7("ab")
 
 # https://github.com/JuliaData/InlineStrings.jl/issues/8
 # construction from pointer
