@@ -866,6 +866,10 @@ function Base._searchindex(s::InlineString, t::Union{String, SubString{String}, 
     n == 0 && return i
     # like `String`, a single-character needle goes through `findnext`, which validates `i`
     lastindex(t) == 1 && return something(findnext(isequal(t[1]), s, i), 0)
+    # `String` decides what a start inside a character does (Julia 1.14+ throws `StringIndexError`).
+    # Only a continuation byte can be inside a character, so the common case skips `isvalid`.
+    i <= m && (codeunit(s, i) & 0xc0) == 0x80 && !isvalid(s, i) &&
+        return Base._searchindex(String(s), String(t), i)
     w = m - n
     (w < 0 || i - 1 > w) && return 0
     # libc's vectorized comparison repays its call overhead for long needles.

@@ -13,6 +13,9 @@
 - On Julia 1.14, loading InlineStrings no longer turns `string.(AbstractString[])`
   into a `Vector{Any}`. InlineStrings no longer adds one-argument `string`
   methods; `string(x::InlineString)` still returns `x`.
+- `findnext(needle, s::InlineString, i)` with `i` inside a character now does
+  what `String` does on the running Julia version. Julia 1.14 throws
+  `StringIndexError` there; earlier versions search from `i`.
 
 ## 2.0.0
 
