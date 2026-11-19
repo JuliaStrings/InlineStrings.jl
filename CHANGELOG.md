@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `findlast`, `findprev`, and searches with an inline string needle in a
+  `String` haystack (`occursin`, `findfirst`, `replace`, `split`, ...) now give
+  the same results as `String`. They previously used Base's generic
+  character-level search, which disagreed with `String` on malformed UTF-8,
+  threw for `findlast("", String7(""))`, and threw for a `findprev(==(c), s, i)`
+  start index inside a character.
+
 ## 2.0.0
 
 ### Breaking changes

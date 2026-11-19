@@ -884,6 +884,19 @@ function Base._searchindex(s::InlineString, t::Union{String, SubString{String}, 
     return 0
 end
 
+# The other searches go through `String`'s methods so their results match
+# `String`. Base's generic `AbstractString` fallbacks compare characters rather
+# than bytes (different on malformed UTF-8), reject an empty needle at index 0,
+# and reject a `findprev` start index inside a character.
+Base._searchindex(s::Union{String, SubString{String}}, t::InlineString, i::Integer) =
+    Base._searchindex(s, String(t), i)
+Base._rsearchindex(s::InlineString, t::Union{String, SubString{String}, InlineString}, i::Integer) =
+    Base._rsearchindex(String(s), String(t), i)
+Base._rsearchindex(s::Union{String, SubString{String}}, t::InlineString, i::Integer) =
+    Base._rsearchindex(s, String(t), i)
+Base.findprev(pred::Base.Fix2{<:Union{typeof(isequal), typeof(==)}, <:AbstractChar}, s::InlineString, i::Integer) =
+    findprev(pred, String(s), i)
+
 function _searchbyte(s::InlineString, b::UInt8, i::Int)
     bytes = _bytes(s)
     @inbounds for k = i:ncodeunits(s)
