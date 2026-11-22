@@ -345,7 +345,7 @@ end
 @test repeat(InlineString(""), typemax(Int)) == ""
 
 # can't contain NUL when converting to Cstring
-@test_throws ArgumentError Base.cconvert(Cstring, InlineString("a\0c"))
+@test_throws ArgumentError("embedded NULs are not allowed in C strings: String3(\"a\\0c\")") Base.cconvert(Cstring, InlineString("a\0c"))
 
 end # @testset
 

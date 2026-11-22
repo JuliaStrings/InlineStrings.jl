@@ -247,10 +247,13 @@ Base.Symbol(x::T) where {T <: InlineString} =
 
 Base.cconvert(::Type{Ptr{UInt8}}, x::InlineString) = Ref(x)
 Base.cconvert(::Type{Ptr{Int8}}, x::InlineString) = Ref(x)
+# keep `repr` out of `cconvert` so its inferred callees stay small (fewer invalidations)
+@noinline throw_embedded_nul(x::InlineString) =
+    throw(ArgumentError("embedded NULs are not allowed in C strings: $(repr(x))"))
 function Base.cconvert(::Type{Cstring}, x::InlineString)
     ref = Ref(x)
     GC.@preserve ref Base.containsnul(Ptr{Int8}(pointer_from_objref(ref)), sizeof(x)) &&
-        throw(ArgumentError("embedded NULs are not allowed in C strings: $(repr(x))"))
+        throw_embedded_nul(x)
     return ref
 end
 Base.unsafe_convert(::Type{Ptr{UInt8}}, r::Base.RefValue{<:InlineString}) = Ptr{UInt8}(pointer_from_objref(r))
